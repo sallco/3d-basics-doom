@@ -71,6 +71,22 @@ pub fn render_3d(
     player: &Player,
     block_size: usize,
 ) {
+    let horizon = framebuffer.height / 2;
+
+    framebuffer.set_current_color(Color::SKYBLUE);
+    for y in 0..horizon {
+        for x in 0..framebuffer.width {
+            framebuffer.point(x, y);
+        }
+    }
+
+    framebuffer.set_current_color(Color::BROWN);
+    for y in horizon..framebuffer.height {
+        for x in 0..framebuffer.width {
+            framebuffer.point(x, y);
+        }
+    }
+
     let num_rays = framebuffer.width;
     let half_width = framebuffer.width as f32 / 2.0;
     let half_height = framebuffer.height as f32 / 2.0;
