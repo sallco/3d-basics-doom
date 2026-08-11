@@ -1,9 +1,11 @@
 mod caster;
+mod events;
 mod framebuffer;
 mod maze;
 mod player;
 
 use caster::cast_ray;
+use events::process_events;
 use framebuffer::Framebuffer;
 use maze::{load_maze, render_maze};
 use player::Player;
@@ -36,22 +38,27 @@ fn main() {
         .log_level(TraceLogLevel::LOG_WARNING)
         .build();
 
+    window.set_target_fps(60);
+
     let mut framebuffer = Framebuffer::new(
         framebuffer_width as u32,
         framebuffer_height as u32,
         Color::BLACK,
     );
 
-    let player = Player::new(Vector2::new(
+    let mut player = Player::new(Vector2::new(
         (player_column * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
         (player_row * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
     ));
 
-    render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
-    cast_ray(&mut framebuffer, &maze, &player, BLOCK_SIZE);
-    player.draw(&mut framebuffer);
-
     while !window.window_should_close() {
+        process_events(&window, &mut player);
+
+        framebuffer.clear();
+        render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
+        cast_ray(&mut framebuffer, &maze, &player, BLOCK_SIZE);
+        player.draw(&mut framebuffer);
+
         framebuffer.swap_buffers_scaled(&mut window, &raylib_thread, SCALE);
     }
 }
