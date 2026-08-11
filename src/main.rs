@@ -3,6 +3,7 @@ mod events;
 mod framebuffer;
 mod maze;
 mod player;
+mod textures;
 
 use caster::{cast_ray, render_3d};
 use events::process_events;
@@ -10,6 +11,7 @@ use framebuffer::Framebuffer;
 use maze::{load_maze, render_maze};
 use player::Player;
 use raylib::prelude::*;
+use textures::TextureManager;
 
 const BLOCK_SIZE: usize = 40;
 const SCALE: f32 = 1.0;
@@ -46,6 +48,12 @@ fn main() {
         Color::BLACK,
     );
 
+    let texture_manager = TextureManager::new();
+    // Cuando existan los archivos wall1.png a wall5.png, reemplazar la línea
+    // anterior por la siguiente para activar las texturas:
+    // let texture_manager = TextureManager::load_defaults()
+    //     .expect("Failed to load wall textures");
+
     let mut player = Player::new(Vector2::new(
         (player_column * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
         (player_row * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
@@ -62,7 +70,13 @@ fn main() {
         framebuffer.clear();
 
         if mode_3d {
-            render_3d(&mut framebuffer, &maze, &player, BLOCK_SIZE);
+            render_3d(
+                &mut framebuffer,
+                &maze,
+                &player,
+                BLOCK_SIZE,
+                &texture_manager,
+            );
         } else {
             render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
 

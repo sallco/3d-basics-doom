@@ -3,6 +3,7 @@ use raylib::color::Color;
 use crate::framebuffer::Framebuffer;
 use crate::maze::{Maze, cell_color};
 use crate::player::Player;
+use crate::textures::TextureManager;
 
 pub struct Intersect {
     pub distance: f32,
@@ -70,6 +71,7 @@ pub fn render_3d(
     maze: &Maze,
     player: &Player,
     block_size: usize,
+    textures: &TextureManager,
 ) {
     let horizon = framebuffer.height / 2;
 
@@ -119,13 +121,33 @@ pub fn render_3d(
         let stake_bottom = (half_height + stake_height / 2.0)
             .min(framebuffer.height as f32) as u32;
 
-        framebuffer.set_current_color(cell_color(
+        let fallback_color = cell_color(
             intersect.impact,
             impact_row,
             impact_column,
-        ));
+        );
+        let texture_dimensions = textures.dimensions(intersect.impact);
+        let wall_offset = if intersect.impact == '|' {
+            impact_y.rem_euclid(block_size as f32)
+        } else {
+            impact_x.rem_euclid(block_size as f32)
+        };
+        let stake_length = (stake_bottom - stake_top).max(1);
 
         for y in stake_top..stake_bottom {
+            let color = texture_dimensions
+                .and_then(|(texture_width, texture_height)| {
+                    let texture_x =
+                        (wall_offset / block_size as f32 * texture_width as f32) as u32;
+                    let texture_y =
+                        ((y - stake_top) as f32 / stake_length as f32 * texture_height as f32)
+                            as u32;
+
+                    textures.get_pixel_color(intersect.impact, texture_x, texture_y)
+                })
+                .unwrap_or(fallback_color);
+
+            framebuffer.set_current_color(color);
             framebuffer.point(column, y);
         }
     }
