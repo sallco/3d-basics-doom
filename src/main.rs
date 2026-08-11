@@ -13,6 +13,7 @@ use raylib::prelude::*;
 
 const BLOCK_SIZE: usize = 20;
 const SCALE: f32 = 2.0;
+const NUM_RAYS: usize = 5;
 
 fn main() {
     let maze = load_maze("src/assets/maze.txt");
@@ -50,14 +51,38 @@ fn main() {
         (player_column * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
         (player_row * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
     ));
+    let mut mode_3d = false;
 
     while !window.window_should_close() {
         process_events(&window, &mut player);
 
+        if window.is_key_pressed(KeyboardKey::KEY_M) {
+            mode_3d = !mode_3d;
+        }
+
         framebuffer.clear();
-        render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
-        cast_ray(&mut framebuffer, &maze, &player, BLOCK_SIZE);
-        player.draw(&mut framebuffer);
+
+        if mode_3d {
+            // render_world(&mut framebuffer, &player);
+        } else {
+            render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
+
+            for ray_index in 0..NUM_RAYS {
+                let current_ray = ray_index as f32 / NUM_RAYS as f32;
+                let ray_angle =
+                    player.a - player.fov / 2.0 + player.fov * current_ray;
+
+                cast_ray(
+                    &mut framebuffer,
+                    &maze,
+                    &player,
+                    ray_angle,
+                    BLOCK_SIZE,
+                );
+            }
+
+            player.draw(&mut framebuffer);
+        }
 
         framebuffer.swap_buffers_scaled(&mut window, &raylib_thread, SCALE);
     }

@@ -8,11 +8,12 @@ pub fn cast_ray(
     framebuffer: &mut Framebuffer,
     maze: &Maze,
     player: &Player,
+    ray_angle: f32,
     block_size: usize,
 ) {
     let mut distance = 0.0;
-    let direction_x = player.a.cos();
-    let direction_y = player.a.sin();
+    let direction_x = ray_angle.cos();
+    let direction_y = ray_angle.sin();
 
     framebuffer.set_current_color(Color::WHITESMOKE);
 
