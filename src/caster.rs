@@ -61,7 +61,7 @@ pub fn cast_ray(
             framebuffer.point(x as u32, y as u32);
         }
 
-        distance += 5.0;
+        distance += 0.1;
     }
 }
 

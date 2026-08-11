@@ -5,8 +5,8 @@ use raylib::prelude::{KeyboardKey, RaylibHandle};
 use crate::player::Player;
 
 pub fn process_events(window: &RaylibHandle, player: &mut Player) {
-    const MOVE_SPEED: f32 = 1.0;
-    const ROTATION_SPEED: f32 = PI / 25.0;
+    const MOVE_SPEED: f32 = 2.0;
+    const ROTATION_SPEED: f32 = PI / 40.0;
 
     if window.is_key_down(KeyboardKey::KEY_LEFT) {
         player.a -= ROTATION_SPEED;
