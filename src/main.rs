@@ -53,7 +53,7 @@ fn main() {
     let mut mode_3d = false;
 
     while !window.window_should_close() {
-        process_events(&window, &mut player);
+        process_events(&window, &mut player, &maze, BLOCK_SIZE);
 
         if window.is_key_pressed(KeyboardKey::KEY_M) {
             mode_3d = !mode_3d;
