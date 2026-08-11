@@ -26,7 +26,7 @@ fn draw_cell(
 ) {
     let color = match cell {
         '+' | '-' | '|' => Color::GRAY,
-        'p' => Color::BLUE,
+        'p' => Color::BLACK,
         'g' => Color::GREEN,
         _ => Color::BLACK,
     };
