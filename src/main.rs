@@ -4,7 +4,7 @@ mod framebuffer;
 mod maze;
 mod player;
 
-use caster::cast_ray;
+use caster::{cast_ray, render_3d};
 use events::process_events;
 use framebuffer::Framebuffer;
 use maze::{load_maze, render_maze};
@@ -63,7 +63,7 @@ fn main() {
         framebuffer.clear();
 
         if mode_3d {
-            // render_world(&mut framebuffer, &player);
+            render_3d(&mut framebuffer, &maze, &player, BLOCK_SIZE);
         } else {
             render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
 
@@ -78,6 +78,7 @@ fn main() {
                     &player,
                     ray_angle,
                     BLOCK_SIZE,
+                    true,
                 );
             }
 

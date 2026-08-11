@@ -4,13 +4,19 @@ use crate::framebuffer::Framebuffer;
 use crate::maze::Maze;
 use crate::player::Player;
 
+pub struct Intersect {
+    pub distance: f32,
+    pub impact: char,
+}
+
 pub fn cast_ray(
     framebuffer: &mut Framebuffer,
     maze: &Maze,
     player: &Player,
     ray_angle: f32,
     block_size: usize,
-) {
+    draw_line: bool,
+) -> Intersect {
     let mut distance = 0.0;
     let direction_x = ray_angle.cos();
     let direction_y = ray_angle.sin();
@@ -26,7 +32,10 @@ pub fn cast_ray(
             || pixel_x >= framebuffer.width as f32
             || pixel_y >= framebuffer.height as f32
         {
-            break;
+            return Intersect {
+                distance,
+                impact: '#',
+            };
         }
 
         let x = pixel_x as usize;
@@ -35,14 +44,62 @@ pub fn cast_ray(
         let row = y / block_size;
 
         let Some(&cell) = maze.get(row).and_then(|maze_row| maze_row.get(column)) else {
-            break;
+            return Intersect {
+                distance,
+                impact: '#',
+            };
         };
 
         if matches!(cell, '+' | '-' | '|') {
-            break;
+            return Intersect {
+                distance,
+                impact: cell,
+            };
         }
 
-        framebuffer.point(x as u32, y as u32);
+        if draw_line {
+            framebuffer.point(x as u32, y as u32);
+        }
+
         distance += 5.0;
+    }
+}
+
+pub fn render_3d(
+    framebuffer: &mut Framebuffer,
+    maze: &Maze,
+    player: &Player,
+    block_size: usize,
+) {
+    let num_rays = framebuffer.width;
+    let half_width = framebuffer.width as f32 / 2.0;
+    let half_height = framebuffer.height as f32 / 2.0;
+    let distance_to_projection_plane = half_width / (player.fov / 2.0).tan();
+
+    framebuffer.set_current_color(Color::WHITESMOKE);
+
+    for column in 0..num_rays {
+        let current_ray = column as f32 / num_rays as f32;
+        let ray_angle = player.a - player.fov / 2.0 + player.fov * current_ray;
+        let intersect = cast_ray(
+            framebuffer,
+            maze,
+            player,
+            ray_angle,
+            block_size,
+            false,
+        );
+
+        let distance_to_wall =
+            (intersect.distance * (ray_angle - player.a).cos()).max(0.0001);
+        let stake_height =
+            (block_size as f32 / distance_to_wall) * distance_to_projection_plane;
+        let stake_top = (half_height - stake_height / 2.0).max(0.0) as u32;
+        let stake_bottom = (half_height + stake_height / 2.0)
+            .min(framebuffer.height as f32) as u32;
+
+        for y in stake_top..stake_bottom {
+            framebuffer.point(column, y);
+        }
     }
 }
