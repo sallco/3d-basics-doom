@@ -1,7 +1,7 @@
 use raylib::color::Color;
 
 use crate::framebuffer::Framebuffer;
-use crate::maze::Maze;
+use crate::maze::{Maze, cell_color};
 use crate::player::Player;
 
 pub struct Intersect {
@@ -90,6 +90,11 @@ pub fn render_3d(
             false,
         );
 
+        let impact_x = player.pos.x + intersect.distance * ray_angle.cos();
+        let impact_y = player.pos.y + intersect.distance * ray_angle.sin();
+        let impact_column = (impact_x.max(0.0) as usize) / block_size;
+        let impact_row = (impact_y.max(0.0) as usize) / block_size;
+
         let distance_to_wall =
             (intersect.distance * (ray_angle - player.a).cos()).max(0.0001);
         let stake_height =
@@ -97,6 +102,12 @@ pub fn render_3d(
         let stake_top = (half_height - stake_height / 2.0).max(0.0) as u32;
         let stake_bottom = (half_height + stake_height / 2.0)
             .min(framebuffer.height as f32) as u32;
+
+        framebuffer.set_current_color(cell_color(
+            intersect.impact,
+            impact_row,
+            impact_column,
+        ));
 
         for y in stake_top..stake_bottom {
             framebuffer.point(column, y);

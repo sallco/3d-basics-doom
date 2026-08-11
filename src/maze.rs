@@ -24,12 +24,9 @@ fn draw_cell(
     block_size: usize,
     cell: char,
 ) {
-    let color = match cell {
-        '+' | '-' | '|' => Color::GRAY,
-        'p' => Color::BLACK,
-        'g' => Color::GREEN,
-        _ => Color::BLACK,
-    };
+    let column = xo / block_size;
+    let row = yo / block_size;
+    let color = cell_color(cell, row, column);
 
     framebuffer.set_current_color(color);
 
@@ -40,6 +37,17 @@ fn draw_cell(
         for x in xo..max_x {
             framebuffer.point(x as u32, y as u32);
         }
+    }
+}
+
+pub fn cell_color(cell: char, row: usize, column: usize) -> Color {
+    let checker_even = (row + column).is_multiple_of(2);
+
+    match cell {
+        '+' | '-' | '|' if checker_even => Color::LIGHTGRAY,
+        '+' | '-' | '|' => Color::GRAY,
+        'g' => Color::GREEN,
+        _ => Color::BLACK,
     }
 }
 

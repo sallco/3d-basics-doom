@@ -11,9 +11,8 @@ use maze::{load_maze, render_maze};
 use player::Player;
 use raylib::prelude::*;
 
-const BLOCK_SIZE: usize = 20;
-const SCALE: f32 = 2.0;
-const NUM_RAYS: usize = 5;
+const BLOCK_SIZE: usize = 40;
+const SCALE: f32 = 1.0;
 
 fn main() {
     let maze = load_maze("src/assets/maze.txt");
@@ -67,8 +66,10 @@ fn main() {
         } else {
             render_maze(&mut framebuffer, &maze, BLOCK_SIZE);
 
-            for ray_index in 0..NUM_RAYS {
-                let current_ray = ray_index as f32 / NUM_RAYS as f32;
+            let num_rays = framebuffer.width;
+
+            for ray_index in 0..num_rays {
+                let current_ray = ray_index as f32 / num_rays as f32;
                 let ray_angle =
                     player.a - player.fov / 2.0 + player.fov * current_ray;
 

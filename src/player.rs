@@ -20,7 +20,7 @@ impl Player {
     }
 
     pub fn draw(&self, framebuffer: &mut Framebuffer) {
-        framebuffer.set_current_color(Color::BLUE);
+        framebuffer.set_current_color(Color::RED);
         framebuffer.point(self.pos.x as u32, self.pos.y as u32);
     }
 }
