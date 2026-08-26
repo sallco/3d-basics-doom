@@ -1,1 +1,28 @@
-/target
+# Artefactos de compilacion de Cargo
+/target/
+/debug/
+/release/
+/.rustc_info.json
+/.cargo-lock
+
+# Archivos temporales
+/tmp/
+*.rs.bk
+*.swp
+*.swo
+*~
+
+# Variables locales y secretos
+.env
+.env.*
+!.env.example
+
+# Editores y herramientas locales
+/.vscode/
+/.idea/
+/.codex/
+/.agents/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

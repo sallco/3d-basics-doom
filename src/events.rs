@@ -25,7 +25,7 @@ pub fn process_events(
     maze: &Maze,
     block_size: usize,
 ) {
-    const MOVE_SPEED: f32 = 2.0;
+    const MOVE_SPEED: f32 = 5.0;
     const ROTATION_SPEED: f32 = PI / 40.0;
 
     if window.is_key_down(KeyboardKey::KEY_LEFT) {
