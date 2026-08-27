@@ -96,3 +96,33 @@ pub struct PaintingTarget {
     pub map_position: (usize, usize),
     pub hits: u8,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_every_supported_map_symbol() {
+        let cases = [
+            (' ', MapSymbol::Tile(Tile::Floor)),
+            ('p', MapSymbol::PlayerSpawn),
+            ('g', MapSymbol::Tile(Tile::Exit)),
+            ('e', MapSymbol::GuardSpawn),
+            ('1', MapSymbol::Tile(Tile::Wall(WallMaterial::Gallery))),
+            ('2', MapSymbol::Tile(Tile::Wall(WallMaterial::Burgundy))),
+            ('3', MapSymbol::Tile(Tile::Wall(WallMaterial::Service))),
+            ('4', MapSymbol::Tile(Tile::Wall(WallMaterial::Accent))),
+            ('T', MapSymbol::Tile(Tile::TargetPainting)),
+            ('d', MapSymbol::Tile(Tile::DecorativePainting)),
+        ];
+
+        for (symbol, expected) in cases {
+            assert_eq!(MapSymbol::try_from(symbol), Ok(expected));
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_map_symbol() {
+        assert_eq!(MapSymbol::try_from('?'), Err(InvalidMapSymbol('?')));
+    }
+}
