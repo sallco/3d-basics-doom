@@ -115,6 +115,7 @@ pub struct Game {
     exit_unlocked: bool,
     shot_cooldown: f32,
     lives: u8,
+    caught_message_timer: f32,
     asset_manager: AssetManager,
     audio_manager: AudioManager,
 }
@@ -147,6 +148,7 @@ impl Game {
             exit_unlocked: false,
             shot_cooldown: 0.0,
             lives: INITIAL_LIVES,
+            caught_message_timer: 0.0,
             asset_manager,
             audio_manager: AudioManager::default(),
         })
@@ -233,6 +235,7 @@ impl Game {
         self.exit_unlocked = false;
         self.shot_cooldown = 0.0;
         self.lives = INITIAL_LIVES;
+        self.caught_message_timer = 0.0;
         self.screen = GameScreen::Playing;
         Ok(())
     }
@@ -441,6 +444,7 @@ impl Game {
         self.audio_manager.play_damage();
         if self.lives > 1 {
             self.lives -= 1;
+            self.caught_message_timer = 3.0;
             self.player = Player::new(self.level.player_spawn);
             for guard in &mut self.level.guards {
                 guard.position = guard.spawn;
@@ -449,9 +453,15 @@ impl Game {
             }
         } else {
             self.lives = 0;
+            self.caught_message_timer = 0.0;
             self.audio_manager.play_game_over();
             self.screen = GameScreen::GameOver;
         }
+    }
+
+    #[allow(dead_code)] // Expuesto para pruebas del temporizador de mensaje de captura.
+    pub fn caught_message_timer(&self) -> f32 {
+        self.caught_message_timer
     }
 
     #[allow(dead_code)] // Expuesto para inspección y pruebas del jugador.
@@ -571,6 +581,9 @@ impl Game {
                 if self.shot_cooldown > 0.0 {
                     self.shot_cooldown = (self.shot_cooldown - delta_time).max(0.0);
                 }
+                if self.caught_message_timer > 0.0 {
+                    self.caught_message_timer = (self.caught_message_timer - delta_time).max(0.0);
+                }
 
                 if window.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
                     || window.is_key_pressed(KeyboardKey::KEY_SPACE)
@@ -627,14 +640,14 @@ impl Game {
             GameScreen::Playing => self.render_playing(framebuffer),
             GameScreen::Success => render_message_screen(
                 framebuffer,
-                "NIVEL COMPLETADO",
-                "Enter para volver al selector",
+                "¡NIVEL COMPLETADO!",
+                "Has intervenido todas las obras y escapado con éxito.\nEnter o Espacio para volver al selector",
                 Color::GREEN,
             ),
             GameScreen::GameOver => render_message_screen(
                 framebuffer,
-                "GAME OVER",
-                "Enter para volver al selector",
+                "¡GAME OVER - SIN VIDAS!",
+                "Has sido capturado por la seguridad del museo.\nEnter o Espacio para volver al selector",
                 Color::RED,
             ),
         }
@@ -662,6 +675,87 @@ impl Game {
         self.render_weapon(framebuffer);
         self.render_crosshair(framebuffer);
         self.render_hud(framebuffer);
+
+        if self.caught_message_timer > 0.0 {
+            self.render_caught_alert(framebuffer);
+        }
+    }
+
+    fn render_caught_alert(&self, framebuffer: &mut Framebuffer) {
+        let modal_w = 680;
+        let modal_h = 160;
+        let modal_x = (LOGICAL_WIDTH as i32 - modal_w) / 2;
+        let modal_y = (LOGICAL_HEIGHT as i32 - modal_h) / 2 - 20;
+
+        // Borde de alarma perimetral en la pantalla durante los primeros 0.6s de la captura
+        if self.caught_message_timer > 2.4 {
+            let flash_alpha = ((self.caught_message_timer - 2.4) / 0.6 * 140.0) as u8;
+            framebuffer.draw_rectangle_lines(
+                0,
+                0,
+                LOGICAL_WIDTH as i32,
+                LOGICAL_HEIGHT as i32,
+                10,
+                Color::new(245, 30, 40, flash_alpha),
+            );
+        }
+
+        // Panel modal oscuro con borde rojo de alerta
+        framebuffer.draw_rectangle(
+            modal_x,
+            modal_y,
+            modal_w,
+            modal_h,
+            Color::new(16, 12, 18, 245),
+        );
+        framebuffer.draw_rectangle_lines(
+            modal_x,
+            modal_y,
+            modal_w,
+            modal_h,
+            3,
+            Color::new(235, 45, 55, 255),
+        );
+
+        // Banda superior de título
+        framebuffer.draw_rectangle(
+            modal_x + 4,
+            modal_y + 4,
+            modal_w - 8,
+            34,
+            Color::new(165, 25, 35, 245),
+        );
+
+        // Texto de cabecera
+        framebuffer.draw_centered_text(
+            "!ALERTA: UN GUARDIA TE HA ATRAPADO!",
+            modal_y + 12,
+            18,
+            Color::WHITE,
+        );
+
+        // Mensaje explicativo
+        framebuffer.draw_centered_text(
+            "Has sido interceptado por la seguridad y reubicado al inicio del nivel.",
+            modal_y + 54,
+            15,
+            Color::new(240, 235, 235, 255),
+        );
+
+        // Indicador de vidas restantes
+        let lives_msg = format!(
+            "Has perdido 1 vida  |  Vidas restantes: {}/{}",
+            self.lives, INITIAL_LIVES
+        );
+        framebuffer.draw_centered_text(&lives_msg, modal_y + 86, 16, Color::new(255, 215, 60, 255));
+
+        // Nota sobre progreso conservado
+        framebuffer.draw_centered_text(
+            "(Tus impactos en las obras objetivo se conservan intactos)",
+            modal_y + 120,
+            13,
+            Color::new(130, 200, 245, 255),
+        );
     }
 
     fn render_hud(&self, framebuffer: &mut Framebuffer) {
@@ -1060,8 +1154,22 @@ fn render_level_select(
 }
 
 fn render_message_screen(framebuffer: &mut Framebuffer, title: &str, subtitle: &str, color: Color) {
-    framebuffer.draw_centered_text(title, 190, 56, color);
-    framebuffer.draw_centered_text(subtitle, 310, 24, Color::RAYWHITE);
+    let box_w = 740;
+    let box_h = 220;
+    let box_x = (LOGICAL_WIDTH as i32 - box_w) / 2;
+    let box_y = (LOGICAL_HEIGHT as i32 - box_h) / 2;
+
+    framebuffer.draw_rectangle(box_x, box_y, box_w, box_h, Color::new(12, 16, 24, 235));
+    framebuffer.draw_rectangle_lines(box_x, box_y, box_w, box_h, 3, color);
+
+    framebuffer.draw_centered_text(title, box_y + 35, 42, color);
+
+    let lines: Vec<&str> = subtitle.split('\n').collect();
+    for (i, line) in lines.iter().enumerate() {
+        let y = box_y + 105 + i as i32 * 36;
+        let line_color = if i == 0 { Color::RAYWHITE } else { Color::GOLD };
+        framebuffer.draw_centered_text(line, y, 20, line_color);
+    }
 }
 
 #[cfg(test)]
@@ -1426,6 +1534,7 @@ mod tests {
         // Catch player once
         game.handle_player_caught();
         assert_eq!(game.lives(), 2);
+        assert!(game.caught_message_timer() > 0.0);
         assert_eq!(game.level().paintings[0].hits, 2);
         assert_eq!(game.player.pos, game.level.player_spawn);
         assert_eq!(game.screen, GameScreen::Playing);
@@ -1433,11 +1542,13 @@ mod tests {
         // Catch player again
         game.handle_player_caught();
         assert_eq!(game.lives(), 1);
+        assert!(game.caught_message_timer() > 0.0);
         assert_eq!(game.screen, GameScreen::Playing);
 
         // Catch player final time -> Game Over
         game.handle_player_caught();
         assert_eq!(game.lives(), 0);
+        assert_eq!(game.caught_message_timer(), 0.0);
         assert_eq!(game.screen, GameScreen::GameOver);
     }
 }
