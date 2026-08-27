@@ -105,6 +105,13 @@ pub enum LevelError {
         row: usize,
         column: usize,
     },
+    InvalidPlayerCount {
+        found: usize,
+    },
+    InvalidExitCount {
+        found: usize,
+    },
+    MissingPaintingTarget,
 }
 
 impl Display for LevelError {
@@ -129,6 +136,20 @@ impl Display for LevelError {
                 row + 1,
                 column + 1
             ),
+            Self::InvalidPlayerCount { found } => write!(
+                formatter,
+                "el mapa debe contener exactamente un jugador; se encontraron {found}"
+            ),
+            Self::InvalidExitCount { found } => write!(
+                formatter,
+                "el mapa debe contener exactamente una salida; se encontraron {found}"
+            ),
+            Self::MissingPaintingTarget => {
+                write!(
+                    formatter,
+                    "el mapa debe contener al menos una pintura objetivo"
+                )
+            }
         }
     }
 }
@@ -141,7 +162,10 @@ impl Error for LevelError {
             Self::EmptyMap
             | Self::EmptyRow { .. }
             | Self::NonRectangular { .. }
-            | Self::OpenBoundary { .. } => None,
+            | Self::OpenBoundary { .. }
+            | Self::InvalidPlayerCount { .. }
+            | Self::InvalidExitCount { .. }
+            | Self::MissingPaintingTarget => None,
         }
     }
 }
@@ -194,11 +218,43 @@ pub fn validate_closed_boundaries(map: &ParsedMap) -> Result<(), LevelError> {
     Ok(())
 }
 
+pub fn validate_required_entities(map: &ParsedMap) -> Result<(), LevelError> {
+    let mut player_count = 0;
+    let mut exit_count = 0;
+    let mut painting_count = 0;
+
+    for symbol in map.iter().flatten() {
+        match symbol {
+            MapSymbol::PlayerSpawn => player_count += 1,
+            MapSymbol::Tile(Tile::Exit) => exit_count += 1,
+            MapSymbol::Tile(Tile::TargetPainting) => painting_count += 1,
+            _ => {}
+        }
+    }
+
+    if player_count != 1 {
+        return Err(LevelError::InvalidPlayerCount {
+            found: player_count,
+        });
+    }
+
+    if exit_count != 1 {
+        return Err(LevelError::InvalidExitCount { found: exit_count });
+    }
+
+    if painting_count == 0 {
+        return Err(LevelError::MissingPaintingTarget);
+    }
+
+    Ok(())
+}
+
 #[allow(dead_code)] // Reemplazará al cargador heredado después de incorporar validaciones.
 pub fn load_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
     let contents = fs::read_to_string(path).map_err(LevelError::Io)?;
     let map = parse_map(&contents).map_err(LevelError::InvalidSymbol)?;
     validate_closed_boundaries(&map)?;
+    validate_required_entities(&map)?;
     Ok(map)
 }
 
@@ -377,6 +433,63 @@ mod tests {
         assert!(matches!(
             validate_closed_boundaries(&map),
             Err(LevelError::OpenBoundary { row: 0, column: 2 })
+        ));
+    }
+
+    #[test]
+    fn accepts_required_level_entities() {
+        let map = parse_map("1p eTg").unwrap();
+
+        assert!(validate_required_entities(&map).is_ok());
+    }
+
+    #[test]
+    fn rejects_map_without_player() {
+        let map = parse_map("1 Tg").unwrap();
+
+        assert!(matches!(
+            validate_required_entities(&map),
+            Err(LevelError::InvalidPlayerCount { found: 0 })
+        ));
+    }
+
+    #[test]
+    fn rejects_map_with_multiple_players() {
+        let map = parse_map("ppTg").unwrap();
+
+        assert!(matches!(
+            validate_required_entities(&map),
+            Err(LevelError::InvalidPlayerCount { found: 2 })
+        ));
+    }
+
+    #[test]
+    fn rejects_map_without_exit() {
+        let map = parse_map("1p T").unwrap();
+
+        assert!(matches!(
+            validate_required_entities(&map),
+            Err(LevelError::InvalidExitCount { found: 0 })
+        ));
+    }
+
+    #[test]
+    fn rejects_map_with_multiple_exits() {
+        let map = parse_map("pTgg").unwrap();
+
+        assert!(matches!(
+            validate_required_entities(&map),
+            Err(LevelError::InvalidExitCount { found: 2 })
+        ));
+    }
+
+    #[test]
+    fn rejects_map_without_target_painting() {
+        let map = parse_map("p dg").unwrap();
+
+        assert!(matches!(
+            validate_required_entities(&map),
+            Err(LevelError::MissingPaintingTarget)
         ));
     }
 }
