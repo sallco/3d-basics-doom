@@ -65,6 +65,16 @@ impl TryFrom<char> for MapSymbol {
     }
 }
 
+pub type ParsedMap = Vec<Vec<MapSymbol>>;
+
+#[allow(dead_code)] // El cargador de archivos la utilizará en el siguiente paso.
+pub fn parse_map(contents: &str) -> Result<ParsedMap, InvalidMapSymbol> {
+    contents
+        .lines()
+        .map(|line| line.chars().map(MapSymbol::try_from).collect())
+        .collect()
+}
+
 #[allow(dead_code)] // Se integrará con el selector y el cargador en pasos posteriores.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LevelDefinition {
