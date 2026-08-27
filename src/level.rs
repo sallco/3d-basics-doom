@@ -1,6 +1,69 @@
 use raylib::prelude::Vector2;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 
 use crate::maze::Maze;
+
+#[allow(dead_code)] // Se usará cuando Maze migre de caracteres a celdas semánticas.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WallMaterial {
+    Gallery,
+    Burgundy,
+    Service,
+    Accent,
+}
+
+#[allow(dead_code)] // Se usará cuando Maze migre de caracteres a celdas semánticas.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Tile {
+    Floor,
+    Exit,
+    Wall(WallMaterial),
+    TargetPainting,
+    DecorativePainting,
+}
+
+#[allow(dead_code)] // El cargador consumirá los marcadores y conservará únicamente Tile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MapSymbol {
+    Tile(Tile),
+    PlayerSpawn,
+    GuardSpawn,
+}
+
+#[allow(dead_code)] // Será el error de validación cuando el cargador use MapSymbol.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InvalidMapSymbol(pub char);
+
+impl Display for InvalidMapSymbol {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "símbolo de mapa desconocido: {:?}", self.0)
+    }
+}
+
+impl Error for InvalidMapSymbol {}
+
+impl TryFrom<char> for MapSymbol {
+    type Error = InvalidMapSymbol;
+
+    fn try_from(symbol: char) -> Result<Self, Self::Error> {
+        let parsed = match symbol {
+            ' ' => Self::Tile(Tile::Floor),
+            'p' => Self::PlayerSpawn,
+            'g' => Self::Tile(Tile::Exit),
+            'e' => Self::GuardSpawn,
+            '1' => Self::Tile(Tile::Wall(WallMaterial::Gallery)),
+            '2' => Self::Tile(Tile::Wall(WallMaterial::Burgundy)),
+            '3' => Self::Tile(Tile::Wall(WallMaterial::Service)),
+            '4' => Self::Tile(Tile::Wall(WallMaterial::Accent)),
+            'T' => Self::Tile(Tile::TargetPainting),
+            'd' => Self::Tile(Tile::DecorativePainting),
+            unknown => return Err(InvalidMapSymbol(unknown)),
+        };
+
+        Ok(parsed)
+    }
+}
 
 #[allow(dead_code)] // Se integrará con el selector y el cargador en pasos posteriores.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
