@@ -23,6 +23,12 @@ pub enum Tile {
     DecorativePainting,
 }
 
+impl Tile {
+    pub fn is_solid(self) -> bool {
+        !matches!(self, Self::Floor)
+    }
+}
+
 pub type LevelMap = Vec<Vec<Tile>>;
 
 #[allow(dead_code)] // El cargador consumirá los marcadores y conservará únicamente Tile.

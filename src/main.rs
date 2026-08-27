@@ -6,6 +6,7 @@ mod level;
 mod levels;
 mod maze;
 mod player;
+mod raycasting;
 mod textures;
 
 use framebuffer::Framebuffer;
