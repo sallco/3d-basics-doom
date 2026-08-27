@@ -198,14 +198,16 @@ impl Game {
         self.exit_unlocked
     }
 
-    pub fn update(&mut self, window: &RaylibHandle) {
+    pub fn update(&mut self, window: &mut RaylibHandle) {
         match self.screen {
             GameScreen::Welcome => {
+                window.enable_cursor();
                 if confirm_pressed(window) {
                     self.screen = GameScreen::LevelSelect;
                 }
             }
             GameScreen::LevelSelect => {
+                window.enable_cursor();
                 if window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
                     self.screen = GameScreen::Welcome;
                     return;
@@ -262,7 +264,10 @@ impl Game {
                 }
             }
             GameScreen::Playing => {
+                window.disable_cursor();
+
                 if window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
+                    window.enable_cursor();
                     self.screen = GameScreen::LevelSelect;
                     return;
                 }
@@ -276,6 +281,7 @@ impl Game {
                 );
             }
             GameScreen::Success | GameScreen::GameOver => {
+                window.enable_cursor();
                 if confirm_pressed(window) || window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
                     self.screen = GameScreen::LevelSelect;
                 }

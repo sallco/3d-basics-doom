@@ -38,7 +38,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut game = Game::new(&LEVEL_DEFINITIONS)?;
 
     while !window.window_should_close() {
-        game.update(&window);
+        game.update(&mut window);
         game.render(&mut framebuffer);
         framebuffer.present(&mut window, &raylib_thread, &mut presentation_texture)?;
     }
