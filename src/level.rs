@@ -249,6 +249,63 @@ pub fn validate_required_entities(map: &ParsedMap) -> Result<(), LevelError> {
     Ok(())
 }
 
+#[allow(dead_code)] // Game lo utilizará al migrar desde el laberinto heredado.
+pub fn build_level(map: ParsedMap) -> Result<Level, LevelError> {
+    validate_closed_boundaries(&map)?;
+    validate_required_entities(&map)?;
+
+    let mut maze = Vec::with_capacity(map.len());
+    let mut player_spawn = Vector2::zero();
+    let mut exit = Vector2::zero();
+    let mut guards = Vec::new();
+    let mut paintings = Vec::new();
+
+    for (row_index, row) in map.into_iter().enumerate() {
+        let mut level_row = Vec::with_capacity(row.len());
+
+        for (column_index, symbol) in row.into_iter().enumerate() {
+            let position = Vector2::new(column_index as f32 + 0.5, row_index as f32 + 0.5);
+            let tile = match symbol {
+                MapSymbol::PlayerSpawn => {
+                    player_spawn = position;
+                    Tile::Floor
+                }
+                MapSymbol::GuardSpawn => {
+                    guards.push(Guard {
+                        spawn: position,
+                        position,
+                    });
+                    Tile::Floor
+                }
+                MapSymbol::Tile(Tile::Exit) => {
+                    exit = position;
+                    Tile::Exit
+                }
+                MapSymbol::Tile(Tile::TargetPainting) => {
+                    paintings.push(PaintingTarget {
+                        map_position: (row_index, column_index),
+                        hits: 0,
+                    });
+                    Tile::TargetPainting
+                }
+                MapSymbol::Tile(tile) => tile,
+            };
+
+            level_row.push(tile);
+        }
+
+        maze.push(level_row);
+    }
+
+    Ok(Level {
+        maze,
+        player_spawn,
+        exit,
+        guards,
+        paintings,
+    })
+}
+
 #[allow(dead_code)] // Reemplazará al cargador heredado después de incorporar validaciones.
 pub fn load_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
     let contents = fs::read_to_string(path).map_err(LevelError::Io)?;
@@ -491,5 +548,30 @@ mod tests {
             validate_required_entities(&map),
             Err(LevelError::MissingPaintingTarget)
         ));
+    }
+
+    #[test]
+    fn builds_level_entities_and_replaces_spawn_markers_with_floor() {
+        let map = parse_map("111111\n1p e 1\n1 T T1\n1 e  1\n11g111").unwrap();
+
+        let level = build_level(map).unwrap();
+
+        assert_eq!(level.player_spawn, Vector2::new(1.5, 1.5));
+        assert_eq!(level.exit, Vector2::new(2.5, 4.5));
+        assert_eq!(level.maze[1][1], Tile::Floor);
+        assert_eq!(level.maze[1][3], Tile::Floor);
+        assert_eq!(level.maze[3][2], Tile::Floor);
+        assert_eq!(level.maze[4][2], Tile::Exit);
+        assert_eq!(level.guards.len(), 2);
+        assert_eq!(level.guards[0].spawn, Vector2::new(3.5, 1.5));
+        assert_eq!(level.guards[1].spawn, Vector2::new(2.5, 3.5));
+        assert_eq!(
+            level
+                .paintings
+                .iter()
+                .map(|painting| (painting.map_position, painting.hits))
+                .collect::<Vec<_>>(),
+            vec![((2, 2), 0), ((2, 4), 0)]
+        );
     }
 }
