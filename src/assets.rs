@@ -9,6 +9,20 @@ pub const WALL_SERVICE_PATH: &str = "src/assets/museum/walls/empty/single_spotli
 pub const WALL_ACCENT_PATH: &str = "src/assets/museum/walls/empty/triple_spotlight.jpg";
 pub const WALL_DECORATIVE_PATH: &str = "src/assets/museum/walls/with_artworks/three/2.jpg";
 
+pub const DECORATIVE_ARTWORK_PATHS: [&str; 6] = [
+    "src/assets/museum/walls/with_artworks/one/16.jpg",
+    "src/assets/museum/walls/with_artworks/one/17.jpg",
+    "src/assets/museum/walls/with_artworks/one/18.jpg",
+    "src/assets/museum/walls/with_artworks/one/19.jpg",
+    "src/assets/museum/walls/with_artworks/two/21.jpg",
+    "src/assets/museum/walls/with_artworks/three/2.jpg",
+];
+
+pub fn decorative_path_for_tile(row: usize, column: usize) -> &'static str {
+    let index = (row * 7 + column * 13) % DECORATIVE_ARTWORK_PATHS.len();
+    DECORATIVE_ARTWORK_PATHS[index]
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Texture {
     pub width: u32,
@@ -91,6 +105,10 @@ impl AssetManager {
         ];
 
         for path in standard_paths {
+            self.load_texture(path);
+        }
+
+        for path in DECORATIVE_ARTWORK_PATHS {
             self.load_texture(path);
         }
     }

@@ -1,8 +1,8 @@
 use raylib::prelude::{Color, Vector2};
 
 use crate::assets::{
-    AssetManager, Texture, WALL_ACCENT_PATH, WALL_BURGUNDY_PATH, WALL_DECORATIVE_PATH,
-    WALL_GALLERY_PATH, WALL_SERVICE_PATH,
+    AssetManager, Texture, WALL_ACCENT_PATH, WALL_BURGUNDY_PATH, WALL_GALLERY_PATH,
+    WALL_SERVICE_PATH, decorative_path_for_tile,
 };
 use crate::framebuffer::Framebuffer;
 use crate::level::{Level, Tile, WallMaterial};
@@ -10,6 +10,7 @@ use crate::raycasting::{RayHit, WallSide, cast_ray_dda};
 
 const CEILING_COLOR: Color = Color::new(18, 22, 30, 255);
 const FLOOR_COLOR: Color = Color::new(45, 43, 42, 255);
+const TARGET_FRAME_COLOR: Color = Color::new(220, 180, 50, 255);
 
 pub fn render_level_3d(
     framebuffer: &mut Framebuffer,
@@ -67,6 +68,8 @@ pub fn render_level_3d(
             let mut color = if let Some(painting) = target_painting {
                 if let Some(splatter_color) = painting.splatter_color_at(hit.texture_u, v) {
                     splatter_color
+                } else if v < 0.05 || v > 0.95 || hit.texture_u < 0.03 || hit.texture_u > 0.97 {
+                    TARGET_FRAME_COLOR
                 } else if let Some(texture) = texture {
                     texture.sample(hit.texture_u, v)
                 } else {
@@ -100,7 +103,10 @@ pub fn get_tile_texture<'a>(
         Tile::Wall(WallMaterial::Burgundy) => asset_manager.get_texture(WALL_BURGUNDY_PATH),
         Tile::Wall(WallMaterial::Service) => asset_manager.get_texture(WALL_SERVICE_PATH),
         Tile::Wall(WallMaterial::Accent) => asset_manager.get_texture(WALL_ACCENT_PATH),
-        Tile::DecorativePainting => asset_manager.get_texture(WALL_DECORATIVE_PATH),
+        Tile::DecorativePainting => {
+            let path = decorative_path_for_tile(hit.map_position.0, hit.map_position.1);
+            asset_manager.get_texture(path)
+        }
         Tile::TargetPainting => {
             let target = level
                 .paintings

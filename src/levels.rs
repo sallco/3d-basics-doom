@@ -2,26 +2,26 @@ use crate::level::LevelDefinition;
 
 const GALLERY_PAINTINGS: [&str; 3] = [
     "src/assets/museum/walls/with_artworks/one/1.jpg",
-    "src/assets/museum/walls/with_artworks/one/5.jpg",
-    "src/assets/museum/walls/with_artworks/one/8.jpg",
+    "src/assets/museum/walls/with_artworks/two/3.jpg",
+    "src/assets/museum/walls/with_artworks/three/4.jpg",
 ];
 
 const MODERN_WING_PAINTINGS: [&str; 5] = [
-    "src/assets/museum/walls/with_artworks/one/11.jpg",
-    "src/assets/museum/walls/with_artworks/one/14.jpg",
-    "src/assets/museum/walls/with_artworks/one/15.jpg",
-    "src/assets/museum/walls/with_artworks/one/16.jpg",
-    "src/assets/museum/walls/with_artworks/one/17.jpg",
+    "src/assets/museum/walls/with_artworks/one/5.jpg",
+    "src/assets/museum/walls/with_artworks/one/8.jpg",
+    "src/assets/museum/walls/with_artworks/two/6.jpg",
+    "src/assets/museum/walls/with_artworks/two/9.jpg",
+    "src/assets/museum/walls/with_artworks/three/7.jpg",
 ];
 
 const NIGHT_ARCHIVE_PAINTINGS: [&str; 7] = [
-    "src/assets/museum/walls/with_artworks/one/18.jpg",
-    "src/assets/museum/walls/with_artworks/one/19.jpg",
-    "src/assets/museum/walls/with_artworks/two/3.jpg",
-    "src/assets/museum/walls/with_artworks/two/6.jpg",
-    "src/assets/museum/walls/with_artworks/two/9.jpg",
+    "src/assets/museum/walls/with_artworks/one/11.jpg",
+    "src/assets/museum/walls/with_artworks/one/14.jpg",
+    "src/assets/museum/walls/with_artworks/one/15.jpg",
     "src/assets/museum/walls/with_artworks/two/12.jpg",
     "src/assets/museum/walls/with_artworks/two/20.jpg",
+    "src/assets/museum/walls/with_artworks/three/10.jpg",
+    "src/assets/museum/walls/with_artworks/three/13.jpg",
 ];
 
 pub static LEVEL_DEFINITIONS: [LevelDefinition; 3] = [

@@ -21,6 +21,7 @@ pub const WINDOW_HEIGHT: i32 = 720;
 
 pub const SHOT_COOLDOWN: f32 = 0.30;
 pub const REQUIRED_HITS_PER_PAINTING: u8 = 3;
+pub const INITIAL_LIVES: u8 = 3;
 
 const CARD_START_X: f32 = 40.0;
 const CARD_Y: f32 = 120.0;
@@ -49,6 +50,18 @@ pub enum ShotHitResult {
         hits: u8,
         completed: bool,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AimedTarget {
+    TargetPainting {
+        painting_index: usize,
+        hits: u8,
+        completed: bool,
+    },
+    DecorativePainting,
+    Wall(WallMaterial),
+    None,
 }
 
 #[derive(Debug)]
@@ -91,6 +104,7 @@ pub struct Game {
     player: Player,
     exit_unlocked: bool,
     shot_cooldown: f32,
+    lives: u8,
     asset_manager: AssetManager,
 }
 
@@ -121,6 +135,7 @@ impl Game {
             player,
             exit_unlocked: false,
             shot_cooldown: 0.0,
+            lives: INITIAL_LIVES,
             asset_manager,
         })
     }
@@ -201,6 +216,7 @@ impl Game {
         self.level = level;
         self.exit_unlocked = false;
         self.shot_cooldown = 0.0;
+        self.lives = INITIAL_LIVES;
         self.screen = GameScreen::Playing;
         Ok(())
     }
@@ -287,6 +303,45 @@ impl Game {
     #[allow(dead_code)] // Expuesto para HUD y pruebas.
     pub fn total_paintings_count(&self) -> usize {
         self.level.paintings.len()
+    }
+
+    #[allow(dead_code)] // Expuesto para HUD y pruebas de vidas.
+    pub fn lives(&self) -> u8 {
+        self.lives
+    }
+
+    #[allow(dead_code)] // Expuesto para lógica de daño en pruebas y módulos posteriores.
+    pub fn set_lives(&mut self, lives: u8) {
+        self.lives = lives;
+    }
+
+    pub fn aimed_target(&self) -> AimedTarget {
+        let Some(hit) = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a) else {
+            return AimedTarget::None;
+        };
+
+        match hit.tile {
+            Tile::TargetPainting => {
+                if let Some((index, painting)) = self
+                    .level
+                    .paintings
+                    .iter()
+                    .enumerate()
+                    .find(|(_, p)| p.map_position == hit.map_position)
+                {
+                    AimedTarget::TargetPainting {
+                        painting_index: index,
+                        hits: painting.hits,
+                        completed: painting.hits >= REQUIRED_HITS_PER_PAINTING,
+                    }
+                } else {
+                    AimedTarget::None
+                }
+            }
+            Tile::DecorativePainting => AimedTarget::DecorativePainting,
+            Tile::Wall(material) => AimedTarget::Wall(material),
+            Tile::Floor | Tile::Exit => AimedTarget::None,
+        }
     }
 
     pub fn check_exit_reached(&self) -> bool {
@@ -468,6 +523,191 @@ impl Game {
             self.exit_unlocked,
             &self.asset_manager,
         );
+
+        self.render_weapon(framebuffer);
+        self.render_crosshair(framebuffer);
+        self.render_hud(framebuffer);
+    }
+
+    fn render_hud(&self, framebuffer: &mut Framebuffer) {
+        framebuffer.draw_rectangle(
+            10,
+            8,
+            (LOGICAL_WIDTH - 20) as i32,
+            36,
+            Color::new(12, 16, 24, 210),
+        );
+        framebuffer.draw_rectangle_lines(
+            10,
+            8,
+            (LOGICAL_WIDTH - 20) as i32,
+            36,
+            1,
+            Color::new(60, 75, 95, 255),
+        );
+
+        framebuffer.draw_text(
+            self.selected_level_definition().name,
+            22,
+            18,
+            16,
+            Color::WHITE,
+        );
+
+        let comp = self.completed_paintings_count();
+        let tot = self.total_paintings_count();
+        let progress_msg = format!("OBRAS: {comp}/{tot}");
+        framebuffer.draw_text(&progress_msg, 410, 18, 16, Color::new(245, 210, 60, 255));
+
+        if self.exit_unlocked {
+            framebuffer.draw_text(
+                "¡SALIDA DESBLOQUEADA!",
+                690,
+                18,
+                16,
+                Color::new(50, 240, 120, 255),
+            );
+        } else {
+            framebuffer.draw_text(
+                "SALIDA BLOQUEADA",
+                740,
+                18,
+                16,
+                Color::new(230, 70, 80, 255),
+            );
+        }
+
+        let box_y = (LOGICAL_HEIGHT - 44) as i32;
+        framebuffer.draw_rectangle(12, box_y, 150, 34, Color::new(12, 16, 24, 210));
+        framebuffer.draw_rectangle_lines(12, box_y, 150, 34, 1, Color::new(60, 75, 95, 255));
+        framebuffer.draw_text("VIDAS:", 22, box_y + 9, 16, Color::WHITE);
+
+        for i in 0..INITIAL_LIVES {
+            let x = 82 + i as i32 * 20;
+            let y = box_y + 10;
+            if i < self.lives {
+                framebuffer.draw_rectangle(x, y, 14, 14, Color::new(235, 55, 80, 255));
+            } else {
+                framebuffer.draw_rectangle_lines(x, y, 14, 14, 1, Color::new(90, 90, 90, 255));
+            }
+        }
+    }
+
+    fn render_crosshair(&self, framebuffer: &mut Framebuffer) {
+        let cx = (LOGICAL_WIDTH / 2) as i32;
+        let cy = (LOGICAL_HEIGHT / 2) as i32;
+
+        match self.aimed_target() {
+            AimedTarget::TargetPainting {
+                hits, completed, ..
+            } => {
+                let color = Color::new(255, 215, 40, 255);
+                framebuffer.draw_rectangle(cx - 14, cy - 14, 7, 2, color);
+                framebuffer.draw_rectangle(cx - 14, cy - 14, 2, 7, color);
+                framebuffer.draw_rectangle(cx + 8, cy - 14, 7, 2, color);
+                framebuffer.draw_rectangle(cx + 13, cy - 14, 2, 7, color);
+                framebuffer.draw_rectangle(cx - 14, cy + 13, 7, 2, color);
+                framebuffer.draw_rectangle(cx - 14, cy + 8, 2, 7, color);
+                framebuffer.draw_rectangle(cx + 8, cy + 13, 7, 2, color);
+                framebuffer.draw_rectangle(cx + 13, cy + 8, 2, 7, color);
+
+                framebuffer.draw_circle(cx, cy, 2, color);
+
+                let (info, text_color) = if completed {
+                    ("✓ OBRA INTERVENIDA (3/3)", Color::new(50, 240, 120, 255))
+                } else {
+                    ("OBJETIVO - ¡DISPARA!", Color::new(255, 220, 50, 255))
+                };
+                let subtitle = format!("Impactos: {hits}/3");
+                framebuffer.draw_centered_text(info, cy + 24, 16, text_color);
+                framebuffer.draw_centered_text(
+                    &subtitle,
+                    cy + 44,
+                    14,
+                    Color::new(240, 240, 240, 230),
+                );
+            }
+            AimedTarget::DecorativePainting => {
+                let color = Color::new(180, 215, 240, 220);
+                framebuffer.draw_rectangle(cx - 6, cy - 1, 12, 2, color);
+                framebuffer.draw_rectangle(cx - 1, cy - 6, 2, 12, color);
+                framebuffer.draw_circle(cx, cy, 2, color);
+                framebuffer.draw_centered_text(
+                    "Obra decorativa (Sin objetivo)",
+                    cy + 24,
+                    14,
+                    Color::new(180, 215, 240, 200),
+                );
+            }
+            AimedTarget::Wall(_) | AimedTarget::None => {
+                framebuffer.draw_rectangle(cx - 8, cy - 1, 6, 2, Color::WHITE);
+                framebuffer.draw_rectangle(cx + 3, cy - 1, 6, 2, Color::WHITE);
+                framebuffer.draw_rectangle(cx - 1, cy - 8, 2, 6, Color::WHITE);
+                framebuffer.draw_rectangle(cx - 1, cy + 3, 2, 6, Color::WHITE);
+                framebuffer.draw_circle(cx, cy, 1, Color::WHITE);
+            }
+        }
+    }
+
+    fn render_weapon(&self, framebuffer: &mut Framebuffer) {
+        let center_x = (LOGICAL_WIDTH / 2) as i32 + 60;
+        let recoil = (self.shot_cooldown / SHOT_COOLDOWN).clamp(0.0, 1.0) * 16.0;
+        let base_y = LOGICAL_HEIGHT as i32 + recoil as i32;
+
+        framebuffer.draw_rectangle(
+            center_x + 12,
+            base_y - 70,
+            22,
+            70,
+            Color::new(30, 33, 40, 255),
+        );
+        framebuffer.draw_rectangle(
+            center_x - 30,
+            base_y - 110,
+            64,
+            46,
+            Color::new(48, 52, 62, 255),
+        );
+        framebuffer.draw_rectangle(
+            center_x - 28,
+            base_y - 108,
+            60,
+            6,
+            Color::new(75, 85, 100, 255),
+        );
+        framebuffer.draw_rectangle(
+            center_x - 14,
+            base_y - 145,
+            28,
+            38,
+            Color::new(28, 30, 36, 255),
+        );
+        framebuffer.draw_rectangle(
+            center_x - 16,
+            base_y - 152,
+            32,
+            8,
+            Color::new(18, 20, 24, 255),
+        );
+        framebuffer.draw_rectangle(
+            center_x + 14,
+            base_y - 138,
+            34,
+            30,
+            Color::new(22, 25, 30, 255),
+        );
+        framebuffer.draw_rectangle(
+            center_x + 17,
+            base_y - 134,
+            28,
+            22,
+            Color::new(255, 40, 140, 230),
+        );
+
+        if recoil > 5.0 {
+            framebuffer.draw_circle(center_x, base_y - 156, 16, Color::new(255, 240, 80, 240));
+            framebuffer.draw_circle(center_x, base_y - 156, 10, Color::new(255, 80, 160, 255));
+        }
     }
 }
 
@@ -926,5 +1166,54 @@ mod tests {
 
         let second = game.shoot();
         assert!(second.is_none());
+    }
+
+    #[test]
+    fn aimed_target_identifies_target_paintings_and_walls() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+
+        // Level 1: target painting is at (1, 3), place player at (3.5, 2.5) facing north
+        let target_pos = game.level().paintings[0].map_position;
+        game.player.pos = Vector2::new(target_pos.1 as f32 + 0.5, target_pos.0 as f32 + 1.5);
+        game.player.a = -std::f32::consts::FRAC_PI_2;
+
+        let aim = game.aimed_target();
+        assert_eq!(
+            aim,
+            AimedTarget::TargetPainting {
+                painting_index: 0,
+                hits: 0,
+                completed: false,
+            }
+        );
+
+        // Turn player away towards empty wall
+        game.player.pos = Vector2::new(1.5, 1.5);
+        game.player.a = -std::f32::consts::FRAC_PI_2;
+        let aim_wall = game.aimed_target();
+        assert!(matches!(aim_wall, AimedTarget::Wall(_)));
+    }
+
+    #[test]
+    fn lives_management_resets_on_start() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        assert_eq!(game.lives(), INITIAL_LIVES);
+
+        game.set_lives(1);
+        assert_eq!(game.lives(), 1);
+
+        game.start_selected_level().unwrap();
+        assert_eq!(game.lives(), INITIAL_LIVES);
+    }
+
+    #[test]
+    fn hud_and_weapon_render_successfully() {
+        let game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        let mut framebuffer = Framebuffer::new(LOGICAL_WIDTH, LOGICAL_HEIGHT, Color::BLACK);
+
+        game.render_hud(&mut framebuffer);
+        game.render_crosshair(&mut framebuffer);
+        game.render_weapon(&mut framebuffer);
     }
 }

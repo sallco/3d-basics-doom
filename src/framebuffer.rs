@@ -51,6 +51,11 @@ impl Framebuffer {
         self.color_buffer.draw_rectangle(x, y, width, height, color);
     }
 
+    pub fn draw_circle(&mut self, center_x: i32, center_y: i32, radius: i32, color: Color) {
+        self.color_buffer
+            .draw_circle(center_x, center_y, radius, color);
+    }
+
     pub fn draw_rectangle_lines(
         &mut self,
         x: i32,
@@ -80,14 +85,10 @@ impl Framebuffer {
         texture: &mut Texture2D,
     ) -> Result<(), String> {
         let colors = self.color_buffer.get_image_data();
+        let total_bytes = colors.len() * std::mem::size_of::<Color>();
         // `raylib::Color` es #[repr(C)] y contiene exactamente cuatro canales u8.
-        // Reinterpretar la vista evita una segunda copia al actualizar la textura GPU.
-        let pixels = unsafe {
-            std::slice::from_raw_parts(
-                colors.as_ptr().cast::<u8>(),
-                std::mem::size_of_val(colors.as_ref()),
-            )
-        };
+        let pixels =
+            unsafe { std::slice::from_raw_parts(colors.as_ptr().cast::<u8>(), total_bytes) };
         texture
             .update_texture(pixels)
             .map_err(|error| format!("no se pudo actualizar el framebuffer: {error}"))?;
