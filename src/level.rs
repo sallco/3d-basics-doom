@@ -263,7 +263,15 @@ pub fn validate_required_entities(map: &ParsedMap) -> Result<(), LevelError> {
     Ok(())
 }
 
+#[allow(dead_code)] // Expuesto para pruebas sin asignación explícita de assets.
 pub fn build_level(map: ParsedMap) -> Result<Level, LevelError> {
+    build_level_with_assets(map, &[])
+}
+
+pub fn build_level_with_assets(
+    map: ParsedMap,
+    painting_assets: &[&'static str],
+) -> Result<Level, LevelError> {
     validate_closed_boundaries(&map)?;
     validate_required_entities(&map)?;
 
@@ -295,9 +303,11 @@ pub fn build_level(map: ParsedMap) -> Result<Level, LevelError> {
                     Tile::Exit
                 }
                 MapSymbol::Tile(Tile::TargetPainting) => {
+                    let asset_path = painting_assets.get(paintings.len()).copied();
                     paintings.push(PaintingTarget {
                         map_position: (row_index, column_index),
                         hits: 0,
+                        asset_path,
                     });
                     Tile::TargetPainting
                 }
@@ -327,10 +337,21 @@ fn load_parsed_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
     Ok(map)
 }
 
-#[allow(dead_code)] // Reemplazará al cargador heredado cuando Game use Level.
+#[allow(dead_code)] // Expuesto para pruebas y carga sin assets explícitos.
 pub fn load_level(path: impl AsRef<Path>) -> Result<Level, LevelError> {
+    load_level_with_assets(path, &[])
+}
+
+pub fn load_level_with_assets(
+    path: impl AsRef<Path>,
+    painting_assets: &[&'static str],
+) -> Result<Level, LevelError> {
     let map = load_parsed_map(path)?;
-    build_level(map)
+    build_level_with_assets(map, painting_assets)
+}
+
+pub fn load_level_definition(definition: &LevelDefinition) -> Result<Level, LevelError> {
+    load_level_with_assets(definition.map_path, definition.painting_assets)
 }
 
 #[allow(dead_code)] // Se integrará con el selector y el cargador en pasos posteriores.
@@ -406,6 +427,7 @@ pub struct Guard {
 pub struct PaintingTarget {
     pub map_position: (usize, usize),
     pub hits: u8,
+    pub asset_path: Option<&'static str>,
 }
 
 #[cfg(test)]
@@ -686,5 +708,18 @@ mod tests {
                 paintings_count: 2,
             }
         );
+    }
+
+    #[test]
+    fn assigns_painting_assets_in_reading_order() {
+        let map = parse_map("111111\n1p T 1\n1   T1\n11g111").unwrap();
+        let assets = ["asset_one.jpg", "asset_two.jpg"];
+        let level = build_level_with_assets(map, &assets).unwrap();
+
+        assert_eq!(level.paintings.len(), 2);
+        assert_eq!(level.paintings[0].map_position, (1, 3));
+        assert_eq!(level.paintings[0].asset_path, Some("asset_one.jpg"));
+        assert_eq!(level.paintings[1].map_position, (2, 4));
+        assert_eq!(level.paintings[1].asset_path, Some("asset_two.jpg"));
     }
 }

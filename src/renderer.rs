@@ -1,20 +1,24 @@
 use raylib::prelude::{Color, Vector2};
 
+use crate::assets::{
+    AssetManager, Texture, WALL_ACCENT_PATH, WALL_BURGUNDY_PATH, WALL_DECORATIVE_PATH,
+    WALL_GALLERY_PATH, WALL_SERVICE_PATH,
+};
 use crate::framebuffer::Framebuffer;
-use crate::level::{LevelMap, Tile, WallMaterial};
-use crate::raycasting::{WallSide, cast_ray_dda};
+use crate::level::{Level, Tile, WallMaterial};
+use crate::raycasting::{RayHit, WallSide, cast_ray_dda};
 
 const CEILING_COLOR: Color = Color::new(18, 22, 30, 255);
 const FLOOR_COLOR: Color = Color::new(45, 43, 42, 255);
 
-#[allow(dead_code)] // Game lo utilizará al migrar al modelo Level.
 pub fn render_level_3d(
     framebuffer: &mut Framebuffer,
-    map: &LevelMap,
+    level: &Level,
     camera_position: Vector2,
     camera_angle: f32,
     field_of_view: f32,
     exit_unlocked: bool,
+    asset_manager: &AssetManager,
 ) -> Vec<f32> {
     render_background(framebuffer);
 
@@ -35,7 +39,7 @@ pub fn render_level_3d(
     for column in 0..framebuffer.width {
         let ray_progress = (column as f32 + 0.5) / framebuffer.width as f32;
         let ray_angle = camera_angle - field_of_view / 2.0 + field_of_view * ray_progress;
-        let Some(hit) = cast_ray_dda(map, camera_position, ray_angle) else {
+        let Some(hit) = cast_ray_dda(&level.maze, camera_position, ray_angle) else {
             continue;
         };
 
@@ -44,21 +48,56 @@ pub fn render_level_3d(
         z_buffer[column as usize] = corrected_distance;
 
         let wall_height = projection_distance / corrected_distance;
-        let wall_top = (half_height - wall_height / 2.0).max(0.0) as u32;
+        let wall_top_float = half_height - wall_height / 2.0;
+        let wall_top = wall_top_float.max(0.0) as u32;
         let wall_bottom = (half_height + wall_height / 2.0).min(framebuffer.height as f32) as u32;
-        let mut color = tile_color(hit.tile, exit_unlocked);
 
-        if matches!(hit.side, WallSide::Horizontal) {
-            color = shade(color, 0.72);
-        }
+        let texture = get_tile_texture(&hit, level, asset_manager);
 
-        framebuffer.set_current_color(color);
         for y in wall_top..wall_bottom {
+            let mut color = if let Some(texture) = texture {
+                let v = (y as f32 - wall_top_float) / wall_height;
+                texture.sample(hit.texture_u, v)
+            } else {
+                tile_color(hit.tile, exit_unlocked)
+            };
+
+            if matches!(hit.side, WallSide::Horizontal) {
+                color = shade(color, 0.72);
+            }
+
+            framebuffer.set_current_color(color);
             framebuffer.point(column, y);
         }
     }
 
     z_buffer
+}
+
+pub fn get_tile_texture<'a>(
+    hit: &RayHit,
+    level: &Level,
+    asset_manager: &'a AssetManager,
+) -> Option<&'a Texture> {
+    match hit.tile {
+        Tile::Wall(WallMaterial::Gallery) => asset_manager.get_texture(WALL_GALLERY_PATH),
+        Tile::Wall(WallMaterial::Burgundy) => asset_manager.get_texture(WALL_BURGUNDY_PATH),
+        Tile::Wall(WallMaterial::Service) => asset_manager.get_texture(WALL_SERVICE_PATH),
+        Tile::Wall(WallMaterial::Accent) => asset_manager.get_texture(WALL_ACCENT_PATH),
+        Tile::DecorativePainting => asset_manager.get_texture(WALL_DECORATIVE_PATH),
+        Tile::TargetPainting => {
+            let target = level
+                .paintings
+                .iter()
+                .find(|painting| painting.map_position == hit.map_position);
+            if let Some(asset_path) = target.and_then(|p| p.asset_path) {
+                asset_manager.get_texture(asset_path)
+            } else {
+                asset_manager.get_texture(WALL_GALLERY_PATH)
+            }
+        }
+        Tile::Floor | Tile::Exit => None,
+    }
 }
 
 fn render_background(framebuffer: &mut Framebuffer) {
@@ -79,7 +118,7 @@ fn render_background(framebuffer: &mut Framebuffer) {
     }
 }
 
-fn tile_color(tile: Tile, exit_unlocked: bool) -> Color {
+pub fn tile_color(tile: Tile, exit_unlocked: bool) -> Color {
     match tile {
         Tile::Floor => FLOOR_COLOR,
         Tile::Exit if exit_unlocked => Color::new(42, 190, 96, 255),
@@ -93,7 +132,7 @@ fn tile_color(tile: Tile, exit_unlocked: bool) -> Color {
     }
 }
 
-fn shade(color: Color, factor: f32) -> Color {
+pub fn shade(color: Color, factor: f32) -> Color {
     Color::new(
         (color.r as f32 * factor) as u8,
         (color.g as f32 * factor) as u8,
@@ -105,16 +144,31 @@ fn shade(color: Color, factor: f32) -> Color {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::level::{Guard, PaintingTarget};
 
-    fn enclosed_map() -> LevelMap {
+    fn test_level() -> Level {
         let wall = Tile::Wall(WallMaterial::Gallery);
-        vec![
+        let maze = vec![
             vec![wall; 5],
             vec![wall, Tile::Floor, Tile::Floor, Tile::Floor, wall],
             vec![wall, Tile::Floor, Tile::Floor, Tile::Floor, wall],
             vec![wall, Tile::Floor, Tile::Floor, Tile::Floor, wall],
             vec![wall; 5],
-        ]
+        ];
+        Level {
+            maze,
+            player_spawn: Vector2::new(2.5, 2.5),
+            exit: Vector2::new(2.5, 4.5),
+            guards: vec![Guard {
+                spawn: Vector2::new(2.5, 2.5),
+                position: Vector2::new(2.5, 2.5),
+            }],
+            paintings: vec![PaintingTarget {
+                map_position: (0, 2),
+                hits: 0,
+                asset_path: Some("src/assets/museum/walls/with_artworks/one/1.jpg"),
+            }],
+        }
     }
 
     #[test]
@@ -150,14 +204,16 @@ mod tests {
     #[test]
     fn rendering_builds_depth_for_every_column() {
         let mut framebuffer = Framebuffer::new(80, 60, Color::BLACK);
+        let asset_manager = AssetManager::default();
 
         let z_buffer = render_level_3d(
             &mut framebuffer,
-            &enclosed_map(),
+            &test_level(),
             Vector2::new(2.5, 2.5),
             0.0,
             std::f32::consts::FRAC_PI_3,
             false,
+            &asset_manager,
         );
 
         assert_eq!(z_buffer.len(), framebuffer.width as usize);

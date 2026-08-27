@@ -3,9 +3,12 @@ use std::fmt::{Display, Formatter};
 
 use raylib::prelude::*;
 
+use crate::assets::AssetManager;
 use crate::events::process_events;
 use crate::framebuffer::Framebuffer;
-use crate::level::{Level, LevelDefinition, LevelError, LevelSummary, load_level, summarize_level};
+use crate::level::{
+    Level, LevelDefinition, LevelError, LevelSummary, load_level_definition, summarize_level,
+};
 use crate::player::Player;
 use crate::renderer::render_level_3d;
 
@@ -70,6 +73,7 @@ pub struct Game {
     level: Level,
     player: Player,
     exit_unlocked: bool,
+    asset_manager: AssetManager,
 }
 
 impl Game {
@@ -79,12 +83,15 @@ impl Game {
         }
 
         let mut level_summaries = Vec::with_capacity(level_definitions.len());
+        let mut asset_manager = AssetManager::new();
+
         for definition in level_definitions {
             let summary = summarize_level(definition.map_path).map_err(GameError::Level)?;
             level_summaries.push(summary);
+            asset_manager.preload_level_assets(definition.painting_assets);
         }
 
-        let level = load_level(level_definitions[0].map_path).map_err(GameError::Level)?;
+        let level = load_level_definition(&level_definitions[0]).map_err(GameError::Level)?;
         let player = Player::new(level.player_spawn);
 
         Ok(Self {
@@ -95,6 +102,7 @@ impl Game {
             level,
             player,
             exit_unlocked: false,
+            asset_manager,
         })
     }
 
@@ -169,7 +177,7 @@ impl Game {
                 index: self.selected_level_index,
                 total: self.level_definitions.len(),
             })?;
-        let level = load_level(definition.map_path).map_err(GameError::Level)?;
+        let level = load_level_definition(definition).map_err(GameError::Level)?;
         self.player = Player::new(level.player_spawn);
         self.level = level;
         self.exit_unlocked = false;
@@ -196,6 +204,11 @@ impl Game {
     #[allow(dead_code)] // Expuesto para inspección de la condición de victoria.
     pub fn exit_unlocked(&self) -> bool {
         self.exit_unlocked
+    }
+
+    #[allow(dead_code)] // Expuesto para inspección y pruebas del gestor de recursos.
+    pub fn asset_manager(&self) -> &AssetManager {
+        &self.asset_manager
     }
 
     pub fn update(&mut self, window: &mut RaylibHandle) {
@@ -319,11 +332,12 @@ impl Game {
     fn render_playing(&self, framebuffer: &mut Framebuffer) {
         render_level_3d(
             framebuffer,
-            &self.level.maze,
+            &self.level,
             self.player.pos,
             self.player.a,
             self.player.fov,
             self.exit_unlocked,
+            &self.asset_manager,
         );
     }
 }
@@ -646,5 +660,17 @@ mod tests {
                 paintings_count: 7,
             }
         );
+    }
+
+    #[test]
+    fn game_preloads_assets_and_associates_paintings_with_definition() {
+        let game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+
+        assert!(game.asset_manager().loaded_texture_count() >= 5);
+        for painting in &game.level().paintings {
+            assert!(painting.asset_path.is_some());
+            let path = painting.asset_path.unwrap();
+            assert!(game.asset_manager().get_texture(path).is_some());
+        }
     }
 }

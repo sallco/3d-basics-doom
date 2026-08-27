@@ -8,6 +8,14 @@ opt-level = 3
 debug = false
 
 [dependencies]
-raylib = { version = "6.0.0", features = ["SUPPORT_IMAGE_GENERATION", "SUPPORT_FILEFORMAT_BMP"] }
+raylib = { version = "6.0.0", features = [
+    "SUPPORT_IMAGE_GENERATION",
+    "SUPPORT_FILEFORMAT_BMP",
+    "SUPPORT_FILEFORMAT_PNG",
+    "SUPPORT_FILEFORMAT_JPG",
+    "SUPPORT_FILEFORMAT_MP3",
+    "SUPPORT_FILEFORMAT_WAV",
+    "SUPPORT_FILEFORMAT_OGG",
+] }
 
 
