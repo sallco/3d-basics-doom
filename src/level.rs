@@ -135,4 +135,30 @@ mod tests {
     fn rejects_unknown_map_symbol() {
         assert_eq!(MapSymbol::try_from('?'), Err(InvalidMapSymbol('?')));
     }
+
+    #[test]
+    fn parses_text_into_rows_and_columns() {
+        let parsed = parse_map("1pT\r\n2eg\r\n").unwrap();
+
+        assert_eq!(
+            parsed,
+            vec![
+                vec![
+                    MapSymbol::Tile(Tile::Wall(WallMaterial::Gallery)),
+                    MapSymbol::PlayerSpawn,
+                    MapSymbol::Tile(Tile::TargetPainting),
+                ],
+                vec![
+                    MapSymbol::Tile(Tile::Wall(WallMaterial::Burgundy)),
+                    MapSymbol::GuardSpawn,
+                    MapSymbol::Tile(Tile::Exit),
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn parser_propagates_unknown_symbols() {
+        assert_eq!(parse_map("111\n1?1"), Err(InvalidMapSymbol('?')));
+    }
 }
