@@ -1,3 +1,4 @@
+mod ai;
 mod assets;
 mod events;
 mod framebuffer;

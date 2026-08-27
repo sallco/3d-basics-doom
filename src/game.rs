@@ -3,12 +3,13 @@ use std::fmt::{Display, Formatter};
 
 use raylib::prelude::*;
 
+use crate::ai::update_guards;
 use crate::assets::AssetManager;
 use crate::events::process_events;
 use crate::framebuffer::Framebuffer;
 use crate::level::{
-    Level, LevelDefinition, LevelError, LevelSummary, PaintSplatter, Tile, WallMaterial,
-    load_level_definition, summarize_level,
+    GuardState, Level, LevelDefinition, LevelError, LevelSummary, PaintSplatter, Tile,
+    WallMaterial, load_level_definition, summarize_level,
 };
 use crate::minimap::render_minimap;
 use crate::player::Player;
@@ -421,6 +422,21 @@ impl Game {
         dx * dx + dy * dy <= 0.64
     }
 
+    pub fn handle_player_caught(&mut self) {
+        if self.lives > 1 {
+            self.lives -= 1;
+            self.player = Player::new(self.level.player_spawn);
+            for guard in &mut self.level.guards {
+                guard.position = guard.spawn;
+                guard.state = GuardState::Patrol;
+                guard.slowed_timer = 0.0;
+            }
+        } else {
+            self.lives = 0;
+            self.screen = GameScreen::GameOver;
+        }
+    }
+
     #[allow(dead_code)] // Expuesto para inspección y pruebas del jugador.
     pub fn player(&self) -> &Player {
         &self.player
@@ -520,17 +536,6 @@ impl Game {
                     self.shot_cooldown = (self.shot_cooldown - delta_time).max(0.0);
                 }
 
-                for guard in &mut self.level.guards {
-                    if guard.slowed_timer > 0.0 {
-                        guard.slowed_timer = (guard.slowed_timer - delta_time).max(0.0);
-                        if guard.slowed_timer == 0.0
-                            && guard.state == crate::level::GuardState::Slowed
-                        {
-                            guard.state = crate::level::GuardState::Chase;
-                        }
-                    }
-                }
-
                 if window.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
                     || window.is_key_pressed(KeyboardKey::KEY_SPACE)
                 {
@@ -544,6 +549,17 @@ impl Game {
                     delta_time,
                     self.exit_unlocked,
                 );
+
+                let captured = update_guards(
+                    &mut self.level.guards,
+                    &self.level.maze,
+                    self.player.pos,
+                    delta_time,
+                );
+
+                if captured {
+                    self.handle_player_caught();
+                }
 
                 if self.exit_unlocked && self.check_exit_reached() {
                     window.enable_cursor();
@@ -1353,5 +1369,31 @@ mod tests {
         );
         assert!(game.level().guards[0].slowed_timer > 0.0);
         assert!(game.level().guards[0].splattered);
+    }
+
+    #[test]
+    fn player_caught_reduces_lives_and_triggers_game_over_at_zero() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+
+        // Mark 1 painting hit to verify progress isn't lost on respawn
+        game.level.paintings[0].hits = 2;
+
+        // Catch player once
+        game.handle_player_caught();
+        assert_eq!(game.lives(), 2);
+        assert_eq!(game.level().paintings[0].hits, 2);
+        assert_eq!(game.player.pos, game.level.player_spawn);
+        assert_eq!(game.screen, GameScreen::Playing);
+
+        // Catch player again
+        game.handle_player_caught();
+        assert_eq!(game.lives(), 1);
+        assert_eq!(game.screen, GameScreen::Playing);
+
+        // Catch player final time -> Game Over
+        game.handle_player_caught();
+        assert_eq!(game.lives(), 0);
+        assert_eq!(game.screen, GameScreen::GameOver);
     }
 }

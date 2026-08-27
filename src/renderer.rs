@@ -182,7 +182,9 @@ pub fn render_guards_3d(
             .min(framebuffer.width as usize);
 
         let sprite_path = match guard.state {
-            crate::level::GuardState::Patrol => crate::assets::GUARD_PATROL_PATH,
+            crate::level::GuardState::Patrol | crate::level::GuardState::Resetting => {
+                crate::assets::GUARD_PATROL_PATH
+            }
             crate::level::GuardState::Alerted => crate::assets::GUARD_IDLE_PATH,
             crate::level::GuardState::Chase => crate::assets::GUARD_CHASE_PATH,
             crate::level::GuardState::Slowed => crate::assets::GUARD_ANGRY_PATH,

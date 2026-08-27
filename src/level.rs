@@ -408,13 +408,14 @@ pub fn summarize_level(path: impl AsRef<Path>) -> Result<LevelSummary, LevelErro
     })
 }
 
-#[allow(dead_code)] // Sus estados y comportamiento pertenecen a una etapa posterior.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GuardState {
     Patrol,
     Alerted,
     Chase,
     Slowed,
+    #[allow(dead_code)]
+    Resetting,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
