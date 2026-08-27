@@ -5,6 +5,7 @@ use raylib::prelude::*;
 
 use crate::ai::update_guards;
 use crate::assets::AssetManager;
+use crate::audio::AudioManager;
 use crate::events::process_events;
 use crate::framebuffer::Framebuffer;
 use crate::level::{
@@ -115,6 +116,7 @@ pub struct Game {
     shot_cooldown: f32,
     lives: u8,
     asset_manager: AssetManager,
+    audio_manager: AudioManager,
 }
 
 impl Game {
@@ -146,7 +148,12 @@ impl Game {
             shot_cooldown: 0.0,
             lives: INITIAL_LIVES,
             asset_manager,
+            audio_manager: AudioManager::default(),
         })
+    }
+
+    pub fn init_audio(&mut self) {
+        self.audio_manager = AudioManager::new();
     }
 
     #[allow(dead_code)] // Expuesto para pruebas e integración de estados posteriores.
@@ -264,6 +271,7 @@ impl Game {
             return None;
         }
         self.shot_cooldown = SHOT_COOLDOWN;
+        self.audio_manager.play_shot();
 
         let wall_hit = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a);
         let max_distance = wall_hit.as_ref().map_or(30.0, |h| h.distance);
@@ -273,10 +281,12 @@ impl Game {
             guard.slowed_timer = 3.0;
             guard.splattered = true;
             guard.state = crate::level::GuardState::Slowed;
+            self.audio_manager.play_hit_guard();
 
             for (i, g) in self.level.guards.iter_mut().enumerate() {
                 if i != guard_idx && g.state == crate::level::GuardState::Patrol {
                     g.state = crate::level::GuardState::Alerted;
+                    self.audio_manager.play_alert();
                 }
             }
 
@@ -306,6 +316,8 @@ impl Game {
                         painting.splatters.push(splatter);
                     }
 
+                    self.audio_manager.play_hit_painting();
+
                     shot_result = Some(ShotHitResult::TargetPainting {
                         painting_index: index,
                         hits: painting.hits,
@@ -321,7 +333,10 @@ impl Game {
                 }
             }
             Tile::Wall(material) => Some(ShotHitResult::Wall(material)),
-            Tile::DecorativePainting => Some(ShotHitResult::DecorativePainting),
+            Tile::DecorativePainting => {
+                self.audio_manager.play_hit_painting();
+                Some(ShotHitResult::DecorativePainting)
+            }
             Tile::Floor | Tile::Exit => Some(ShotHitResult::Miss),
         }
     }
@@ -423,6 +438,7 @@ impl Game {
     }
 
     pub fn handle_player_caught(&mut self) {
+        self.audio_manager.play_damage();
         if self.lives > 1 {
             self.lives -= 1;
             self.player = Player::new(self.level.player_spawn);
@@ -433,6 +449,7 @@ impl Game {
             }
         } else {
             self.lives = 0;
+            self.audio_manager.play_game_over();
             self.screen = GameScreen::GameOver;
         }
     }
@@ -457,17 +474,26 @@ impl Game {
         &self.asset_manager
     }
 
+    #[allow(dead_code)] // Expuesto para inspección y pruebas de audio.
+    pub fn audio_manager_mut(&mut self) -> &mut AudioManager {
+        &mut self.audio_manager
+    }
+
     pub fn update(&mut self, window: &mut RaylibHandle) {
+        self.audio_manager.update_music();
+
         match self.screen {
             GameScreen::Welcome => {
                 window.enable_cursor();
                 if confirm_pressed(window) {
+                    self.audio_manager.play_ui();
                     self.screen = GameScreen::LevelSelect;
                 }
             }
             GameScreen::LevelSelect => {
                 window.enable_cursor();
                 if window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
+                    self.audio_manager.play_ui();
                     self.screen = GameScreen::Welcome;
                     return;
                 }
@@ -475,27 +501,32 @@ impl Game {
                 if window.is_key_pressed(KeyboardKey::KEY_LEFT)
                     || window.is_key_pressed(KeyboardKey::KEY_A)
                 {
+                    self.audio_manager.play_ui();
                     self.select_previous_level();
                 }
                 if window.is_key_pressed(KeyboardKey::KEY_RIGHT)
                     || window.is_key_pressed(KeyboardKey::KEY_D)
                 {
+                    self.audio_manager.play_ui();
                     self.select_next_level();
                 }
 
                 if window.is_key_pressed(KeyboardKey::KEY_ONE)
                     || window.is_key_pressed(KeyboardKey::KEY_KP_1)
                 {
+                    self.audio_manager.play_ui();
                     let _ = self.select_level(0);
                 }
                 if window.is_key_pressed(KeyboardKey::KEY_TWO)
                     || window.is_key_pressed(KeyboardKey::KEY_KP_2)
                 {
+                    self.audio_manager.play_ui();
                     let _ = self.select_level(1);
                 }
                 if window.is_key_pressed(KeyboardKey::KEY_THREE)
                     || window.is_key_pressed(KeyboardKey::KEY_KP_3)
                 {
+                    self.audio_manager.play_ui();
                     let _ = self.select_level(2);
                 }
 
@@ -508,6 +539,7 @@ impl Game {
                             && mouse.y <= CARD_Y + CARD_HEIGHT
                             && window.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
                         {
+                            self.audio_manager.play_ui();
                             if self.selected_level_index == i {
                                 self.try_start_selected_level();
                             } else {
@@ -519,6 +551,7 @@ impl Game {
                 }
 
                 if confirm_pressed(window) {
+                    self.audio_manager.play_ui();
                     self.try_start_selected_level();
                 }
             }
@@ -527,6 +560,7 @@ impl Game {
 
                 if window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
                     window.enable_cursor();
+                    self.audio_manager.play_ui();
                     self.screen = GameScreen::LevelSelect;
                     return;
                 }
@@ -563,12 +597,14 @@ impl Game {
 
                 if self.exit_unlocked && self.check_exit_reached() {
                     window.enable_cursor();
+                    self.audio_manager.play_success();
                     self.screen = GameScreen::Success;
                 }
             }
             GameScreen::Success | GameScreen::GameOver => {
                 window.enable_cursor();
                 if confirm_pressed(window) || window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
+                    self.audio_manager.play_ui();
                     self.screen = GameScreen::LevelSelect;
                 }
             }

@@ -1,5 +1,6 @@
 mod ai;
 mod assets;
+mod audio;
 mod events;
 mod framebuffer;
 mod game;
@@ -39,6 +40,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     presentation_texture.set_texture_filter(&raylib_thread, TextureFilter::TEXTURE_FILTER_POINT);
 
     let mut game = Game::new(&LEVEL_DEFINITIONS)?;
+    game.init_audio();
 
     while !window.window_should_close() {
         game.update(&mut window);
