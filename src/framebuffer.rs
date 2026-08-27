@@ -35,12 +35,42 @@ impl Framebuffer {
         self.current_color = color;
     }
 
+    pub fn draw_text(&mut self, text: &str, x: i32, y: i32, font_size: i32, color: Color) {
+        self.color_buffer.draw_text(text, x, y, font_size, color);
+    }
+
     pub fn draw_centered_text(&mut self, text: &str, y: i32, font_size: i32, color: Color) {
         // La fuente predeterminada de Raylib tiene glifos de aproximadamente media em.
         // Esta estimación evita acoplar el framebuffer lógico al handle de la ventana.
         let width = text.chars().count() as i32 * font_size / 2;
         let x = (self.width as i32 - width) / 2;
         self.color_buffer.draw_text(text, x, y, font_size, color);
+    }
+
+    pub fn draw_rectangle(&mut self, x: i32, y: i32, width: i32, height: i32, color: Color) {
+        self.color_buffer.draw_rectangle(x, y, width, height, color);
+    }
+
+    pub fn draw_rectangle_lines(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        thickness: i32,
+        color: Color,
+    ) {
+        for t in 0..thickness {
+            let rx = x + t;
+            let ry = y + t;
+            let rw = (width - 2 * t).max(1);
+            let rh = (height - 2 * t).max(1);
+            self.color_buffer.draw_rectangle_lines(
+                Rectangle::new(rx as f32, ry as f32, rw as f32, rh as f32),
+                1,
+                color,
+            );
+        }
     }
 
     pub fn present(

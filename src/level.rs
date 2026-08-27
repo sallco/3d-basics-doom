@@ -341,6 +341,14 @@ pub struct LevelDefinition {
     pub painting_assets: &'static [&'static str],
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LevelSummary {
+    pub width: usize,
+    pub height: usize,
+    pub guards_count: usize,
+    pub paintings_count: usize,
+}
+
 #[allow(dead_code)] // Se construirá cuando el cargador semántico esté implementado.
 #[derive(Debug)]
 pub struct Level {
@@ -349,6 +357,41 @@ pub struct Level {
     pub exit: Vector2,
     pub guards: Vec<Guard>,
     pub paintings: Vec<PaintingTarget>,
+}
+
+impl Level {
+    #[allow(dead_code)] // Utilizado para inspeccionar y resumir niveles cargados.
+    pub fn summary(&self) -> LevelSummary {
+        LevelSummary {
+            width: self.maze.first().map_or(0, |row| row.len()),
+            height: self.maze.len(),
+            guards_count: self.guards.len(),
+            paintings_count: self.paintings.len(),
+        }
+    }
+}
+
+pub fn summarize_level(path: impl AsRef<Path>) -> Result<LevelSummary, LevelError> {
+    let map = load_parsed_map(path)?;
+    let width = map.first().map_or(0, |row| row.len());
+    let height = map.len();
+    let mut guards_count = 0;
+    let mut paintings_count = 0;
+
+    for symbol in map.iter().flatten() {
+        match symbol {
+            MapSymbol::GuardSpawn => guards_count += 1,
+            MapSymbol::Tile(Tile::TargetPainting) => paintings_count += 1,
+            _ => {}
+        }
+    }
+
+    Ok(LevelSummary {
+        width,
+        height,
+        guards_count,
+        paintings_count,
+    })
 }
 
 #[allow(dead_code)] // Sus estados y comportamiento pertenecen a una etapa posterior.
@@ -606,6 +649,42 @@ mod tests {
                 .map(|painting| (painting.map_position, painting.hits))
                 .collect::<Vec<_>>(),
             vec![((2, 2), 0), ((2, 4), 0)]
+        );
+    }
+
+    #[test]
+    fn summarizes_level_file_correctly() {
+        let path = temporary_map_path("summary-level");
+        let contents = "111111\n1p e 1\n1 T T1\n1 e  1\n11g111\n";
+        std::fs::write(&path, contents).unwrap();
+
+        let summary = summarize_level(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        assert_eq!(
+            summary,
+            LevelSummary {
+                width: 6,
+                height: 5,
+                guards_count: 2,
+                paintings_count: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn level_summary_method_matches_built_level() {
+        let map = parse_map("111111\n1p e 1\n1 T T1\n1 e  1\n11g111").unwrap();
+        let level = build_level(map).unwrap();
+
+        assert_eq!(
+            level.summary(),
+            LevelSummary {
+                width: 6,
+                height: 5,
+                guards_count: 2,
+                paintings_count: 2,
+            }
         );
     }
 }

@@ -35,7 +35,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|error| format!("no se pudo crear la textura de presentación: {error}"))?;
     presentation_texture.set_texture_filter(&raylib_thread, TextureFilter::TEXTURE_FILTER_POINT);
 
-    let mut game = Game::new(&LEVEL_DEFINITIONS[0])?;
+    let mut game = Game::new(&LEVEL_DEFINITIONS)?;
 
     while !window.window_should_close() {
         game.update(&window);
