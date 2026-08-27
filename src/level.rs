@@ -1,6 +1,8 @@
 use raylib::prelude::Vector2;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::fs;
+use std::path::Path;
 
 #[allow(dead_code)] // El renderer semántico se implementará en un paso posterior.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -67,12 +69,42 @@ impl TryFrom<char> for MapSymbol {
 
 pub type ParsedMap = Vec<Vec<MapSymbol>>;
 
-#[allow(dead_code)] // El cargador de archivos la utilizará en el siguiente paso.
 pub fn parse_map(contents: &str) -> Result<ParsedMap, InvalidMapSymbol> {
     contents
         .lines()
         .map(|line| line.chars().map(MapSymbol::try_from).collect())
         .collect()
+}
+
+#[allow(dead_code)] // Se usará cuando Game cargue LevelDefinition.
+#[derive(Debug)]
+pub enum LevelError {
+    Io(std::io::Error),
+    InvalidSymbol(InvalidMapSymbol),
+}
+
+impl Display for LevelError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(error) => write!(formatter, "no se pudo leer el mapa: {error}"),
+            Self::InvalidSymbol(error) => Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl Error for LevelError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Io(error) => Some(error),
+            Self::InvalidSymbol(error) => Some(error),
+        }
+    }
+}
+
+#[allow(dead_code)] // Reemplazará al cargador heredado después de incorporar validaciones.
+pub fn load_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
+    let contents = fs::read_to_string(path).map_err(LevelError::Io)?;
+    parse_map(&contents).map_err(LevelError::InvalidSymbol)
 }
 
 #[allow(dead_code)] // Se integrará con el selector y el cargador en pasos posteriores.
