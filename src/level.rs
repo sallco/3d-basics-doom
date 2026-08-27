@@ -249,7 +249,6 @@ pub fn validate_required_entities(map: &ParsedMap) -> Result<(), LevelError> {
     Ok(())
 }
 
-#[allow(dead_code)] // Game lo utilizará al migrar desde el laberinto heredado.
 pub fn build_level(map: ParsedMap) -> Result<Level, LevelError> {
     validate_closed_boundaries(&map)?;
     validate_required_entities(&map)?;
@@ -306,13 +305,18 @@ pub fn build_level(map: ParsedMap) -> Result<Level, LevelError> {
     })
 }
 
-#[allow(dead_code)] // Reemplazará al cargador heredado después de incorporar validaciones.
-pub fn load_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
+fn load_parsed_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
     let contents = fs::read_to_string(path).map_err(LevelError::Io)?;
     let map = parse_map(&contents).map_err(LevelError::InvalidSymbol)?;
     validate_closed_boundaries(&map)?;
     validate_required_entities(&map)?;
     Ok(map)
+}
+
+#[allow(dead_code)] // Reemplazará al cargador heredado cuando Game use Level.
+pub fn load_level(path: impl AsRef<Path>) -> Result<Level, LevelError> {
+    let map = load_parsed_map(path)?;
+    build_level(map)
 }
 
 #[allow(dead_code)] // Se integrará con el selector y el cargador en pasos posteriores.
@@ -422,7 +426,7 @@ mod tests {
         let contents = "1111\n1pT1\n1 e1\n11g1\n";
         std::fs::write(&path, contents).unwrap();
 
-        let loaded = load_map(&path);
+        let loaded = load_parsed_map(&path);
         std::fs::remove_file(path).unwrap();
 
         assert_eq!(loaded.unwrap(), parse_map(contents).unwrap());
@@ -432,7 +436,23 @@ mod tests {
     fn reports_io_error_for_missing_map_file() {
         let path = temporary_map_path("missing-map");
 
-        assert!(matches!(load_map(path), Err(LevelError::Io(_))));
+        assert!(matches!(load_level(path), Err(LevelError::Io(_))));
+    }
+
+    #[test]
+    fn loads_complete_level_from_file() {
+        let path = temporary_map_path("complete-level");
+        let contents = "11111\n1p e1\n1 T 1\n11g11\n";
+        std::fs::write(&path, contents).unwrap();
+
+        let level = load_level(&path);
+        std::fs::remove_file(path).unwrap();
+        let level = level.unwrap();
+
+        assert_eq!(level.player_spawn, Vector2::new(1.5, 1.5));
+        assert_eq!(level.exit, Vector2::new(2.5, 3.5));
+        assert_eq!(level.guards.len(), 1);
+        assert_eq!(level.paintings.len(), 1);
     }
 
     #[test]
