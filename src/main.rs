@@ -2,6 +2,7 @@ mod caster;
 mod events;
 mod framebuffer;
 mod game;
+mod level;
 mod maze;
 mod player;
 mod textures;
