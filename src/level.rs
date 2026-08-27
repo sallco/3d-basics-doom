@@ -2,9 +2,7 @@ use raylib::prelude::Vector2;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use crate::maze::Maze;
-
-#[allow(dead_code)] // Se usará cuando Maze migre de caracteres a celdas semánticas.
+#[allow(dead_code)] // El renderer semántico se implementará en un paso posterior.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WallMaterial {
     Gallery,
@@ -13,7 +11,7 @@ pub enum WallMaterial {
     Accent,
 }
 
-#[allow(dead_code)] // Se usará cuando Maze migre de caracteres a celdas semánticas.
+#[allow(dead_code)] // El renderer semántico se implementará en un paso posterior.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Tile {
     Floor,
@@ -22,6 +20,8 @@ pub enum Tile {
     TargetPainting,
     DecorativePainting,
 }
+
+pub type LevelMap = Vec<Vec<Tile>>;
 
 #[allow(dead_code)] // El cargador consumirá los marcadores y conservará únicamente Tile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,7 +76,7 @@ pub struct LevelDefinition {
 #[allow(dead_code)] // Se construirá cuando el cargador semántico esté implementado.
 #[derive(Debug)]
 pub struct Level {
-    pub maze: Maze,
+    pub maze: LevelMap,
     pub player_spawn: Vector2,
     pub exit: Vector2,
     pub guards: Vec<Guard>,
