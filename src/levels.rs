@@ -67,4 +67,29 @@ mod tests {
             assert_eq!(definition.painting_assets.len(), paintings);
         }
     }
+
+    #[test]
+    fn all_levels_have_reachable_exit() {
+        use crate::ai::bfs_path;
+
+        for definition in &LEVEL_DEFINITIONS {
+            let level = load_level(definition.map_path).unwrap();
+            let start = (
+                level.player_spawn.y.floor() as usize,
+                level.player_spawn.x.floor() as usize,
+            );
+            let goal = (level.exit.y.floor() as usize, level.exit.x.floor() as usize);
+
+            // Temporarily treat exit cell as walkable for reachability test
+            let mut maze_with_exit_walkable = level.maze.clone();
+            maze_with_exit_walkable[goal.0][goal.1] = crate::level::Tile::Floor;
+
+            let path = bfs_path(&maze_with_exit_walkable, start, goal);
+            assert!(
+                path.is_some(),
+                "Exit must be reachable from player spawn in {}",
+                definition.name
+            );
+        }
+    }
 }

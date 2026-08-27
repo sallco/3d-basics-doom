@@ -21,7 +21,7 @@ pub fn render_level_3d(
     exit_unlocked: bool,
     asset_manager: &AssetManager,
 ) -> Vec<f32> {
-    render_background(framebuffer);
+    render_background(framebuffer, camera_position, camera_angle, field_of_view);
 
     let mut z_buffer = vec![f32::INFINITY; framebuffer.width as usize];
     if framebuffer.width == 0
@@ -63,6 +63,13 @@ pub fn render_level_3d(
             None
         };
 
+        let fog = (1.0 / (1.0 + corrected_distance * 0.05)).clamp(0.28, 1.0);
+        let side_factor = if matches!(hit.side, WallSide::Horizontal) {
+            0.76
+        } else {
+            1.0
+        };
+
         for y in wall_top..wall_bottom {
             let v = (y as f32 - wall_top_float) / wall_height;
             let mut color = if let Some(painting) = target_painting {
@@ -81,9 +88,7 @@ pub fn render_level_3d(
                 tile_color(hit.tile, exit_unlocked)
             };
 
-            if matches!(hit.side, WallSide::Horizontal) {
-                color = shade(color, 0.72);
-            }
+            color = shade(color, side_factor * fog);
 
             framebuffer.set_current_color(color);
             framebuffer.point(column, y);
@@ -271,19 +276,102 @@ pub fn get_tile_texture<'a>(
     }
 }
 
-fn render_background(framebuffer: &mut Framebuffer) {
+fn render_background(
+    framebuffer: &mut Framebuffer,
+    camera_position: Vector2,
+    camera_angle: f32,
+    field_of_view: f32,
+) {
     let horizon = framebuffer.height / 2;
+    let half_height = horizon as f32;
+    let projection_distance = (framebuffer.width as f32 / 2.0) / (field_of_view / 2.0).tan();
 
-    framebuffer.set_current_color(CEILING_COLOR);
+    let mut ray_cos = Vec::with_capacity(framebuffer.width as usize);
+    let mut ray_sin = Vec::with_capacity(framebuffer.width as usize);
+    for column in 0..framebuffer.width {
+        let ray_progress = (column as f32 + 0.5) / framebuffer.width as f32;
+        let ray_angle = camera_angle - field_of_view / 2.0 + field_of_view * ray_progress;
+        ray_cos.push(ray_angle.cos());
+        ray_sin.push(ray_angle.sin());
+    }
+
+    // 1. Techo arquitectónico de galería con vigas y artesonado
     for y in 0..horizon {
+        let row_dy = (half_height - y as f32).max(1.0);
+        let row_distance = projection_distance / row_dy;
+        let fog = (1.0 / (1.0 + row_distance * 0.08)).clamp(0.20, 1.0);
+
         for x in 0..framebuffer.width {
+            let world_x = camera_position.x + row_distance * ray_cos[x as usize];
+            let world_y = camera_position.y + row_distance * ray_sin[x as usize];
+
+            let u = (world_x - world_x.floor()).abs();
+            let v = (world_y - world_y.floor()).abs();
+
+            let is_beam = u < 0.08 || u > 0.92 || v < 0.08 || v > 0.92;
+            let base_color = if is_beam {
+                Color::new(28, 34, 46, 255)
+            } else {
+                CEILING_COLOR
+            };
+
+            let pixel = shade(base_color, fog);
+            framebuffer.set_current_color(pixel);
             framebuffer.point(x, y);
         }
     }
 
-    framebuffer.set_current_color(FLOOR_COLOR);
+    // 2. Piso temático de museo: Parquet de madera de roble cálido con juntas y vetas
     for y in horizon..framebuffer.height {
+        let row_dy = (y as f32 - half_height).max(1.0);
+        let row_distance = projection_distance / row_dy;
+        let fog = (1.0 / (1.0 + row_distance * 0.07)).clamp(0.20, 1.0);
+
         for x in 0..framebuffer.width {
+            let world_x = camera_position.x + row_distance * ray_cos[x as usize];
+            let world_y = camera_position.y + row_distance * ray_sin[x as usize];
+
+            let u = (world_x - world_x.floor()).abs();
+            let v = (world_y - world_y.floor()).abs();
+
+            let plank_idx = (v * 4.0).floor() as u32;
+            let plank_offset = if plank_idx.is_multiple_of(2) {
+                0.5
+            } else {
+                0.0
+            };
+            let plank_u = ((u + plank_offset) * 2.0).fract();
+            let plank_v = (v * 4.0).fract();
+
+            let is_joint = plank_v < 0.06 || plank_u < 0.04;
+            let wood_color = if is_joint {
+                Color::new(42, 26, 16, 255)
+            } else {
+                let grain = ((plank_u * 14.0).sin() * 0.5 + 0.5) * 0.12;
+                match plank_idx % 3 {
+                    0 => Color::new(
+                        (88.0 * (1.0 + grain)).min(255.0) as u8,
+                        (56.0 * (1.0 + grain)).min(255.0) as u8,
+                        (36.0 * (1.0 + grain)).min(255.0) as u8,
+                        255,
+                    ),
+                    1 => Color::new(
+                        (78.0 * (1.0 + grain)).min(255.0) as u8,
+                        (48.0 * (1.0 + grain)).min(255.0) as u8,
+                        (30.0 * (1.0 + grain)).min(255.0) as u8,
+                        255,
+                    ),
+                    _ => Color::new(
+                        (98.0 * (1.0 + grain)).min(255.0) as u8,
+                        (64.0 * (1.0 + grain)).min(255.0) as u8,
+                        (42.0 * (1.0 + grain)).min(255.0) as u8,
+                        255,
+                    ),
+                }
+            };
+
+            let pixel = shade(wood_color, fog);
+            framebuffer.set_current_color(pixel);
             framebuffer.point(x, y);
         }
     }
