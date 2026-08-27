@@ -10,7 +10,6 @@ use crate::raycasting::{RayHit, WallSide, cast_ray_dda};
 
 const CEILING_COLOR: Color = Color::new(18, 22, 30, 255);
 const FLOOR_COLOR: Color = Color::new(45, 43, 42, 255);
-const TARGET_FRAME_COLOR: Color = Color::new(220, 180, 50, 255);
 
 pub fn render_level_3d(
     framebuffer: &mut Framebuffer,
@@ -75,16 +74,6 @@ pub fn render_level_3d(
             let mut color = if let Some(painting) = target_painting {
                 if let Some(splatter_color) = painting.splatter_color_at(hit.texture_u, v) {
                     splatter_color
-                } else if v < 0.06 || v > 0.94 || hit.texture_u < 0.04 || hit.texture_u > 0.96 {
-                    TARGET_FRAME_COLOR
-                } else if let Some(texture) = texture {
-                    texture.sample(hit.texture_u, v)
-                } else {
-                    tile_color(hit.tile, exit_unlocked)
-                }
-            } else if matches!(hit.tile, Tile::DecorativePainting) {
-                if v < 0.04 || v > 0.96 || hit.texture_u < 0.03 || hit.texture_u > 0.97 {
-                    Color::new(60, 42, 28, 255)
                 } else if let Some(texture) = texture {
                     texture.sample(hit.texture_u, v)
                 } else {
