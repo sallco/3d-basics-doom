@@ -292,10 +292,7 @@ pub fn build_level_with_assets(
                     Tile::Floor
                 }
                 MapSymbol::GuardSpawn => {
-                    guards.push(Guard {
-                        spawn: position,
-                        position,
-                    });
+                    guards.push(Guard::new(position));
                     Tile::Floor
                 }
                 MapSymbol::Tile(Tile::Exit) => {
@@ -412,10 +409,33 @@ pub fn summarize_level(path: impl AsRef<Path>) -> Result<LevelSummary, LevelErro
 }
 
 #[allow(dead_code)] // Sus estados y comportamiento pertenecen a una etapa posterior.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GuardState {
+    Patrol,
+    Alerted,
+    Chase,
+    Slowed,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Guard {
     pub spawn: Vector2,
     pub position: Vector2,
+    pub state: GuardState,
+    pub slowed_timer: f32,
+    pub splattered: bool,
+}
+
+impl Guard {
+    pub fn new(spawn: Vector2) -> Self {
+        Self {
+            spawn,
+            position: spawn,
+            state: GuardState::Patrol,
+            slowed_timer: 0.0,
+            splattered: false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

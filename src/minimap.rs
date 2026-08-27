@@ -195,10 +195,7 @@ mod tests {
             maze,
             player_spawn: Vector2::new(1.5, 1.5),
             exit: Vector2::new((w - 2) as f32 + 0.5, (h - 2) as f32 + 0.5),
-            guards: vec![Guard {
-                spawn: Vector2::new(3.5, 3.5),
-                position: Vector2::new(3.5, 3.5),
-            }],
+            guards: vec![Guard::new(Vector2::new(3.5, 3.5))],
             paintings: vec![PaintingTarget::new((1, 2), None)],
         }
     }

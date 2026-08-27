@@ -9,6 +9,11 @@ pub const WALL_SERVICE_PATH: &str = "src/assets/museum/walls/empty/single_spotli
 pub const WALL_ACCENT_PATH: &str = "src/assets/museum/walls/empty/triple_spotlight.jpg";
 pub const WALL_DECORATIVE_PATH: &str = "src/assets/museum/walls/with_artworks/three/2.jpg";
 
+pub const GUARD_IDLE_PATH: &str = "src/assets/museum/guards/states/guard_idle.png";
+pub const GUARD_PATROL_PATH: &str = "src/assets/museum/guards/states/guard_patrol.png";
+pub const GUARD_CHASE_PATH: &str = "src/assets/museum/guards/states/guard_chase.png";
+pub const GUARD_ANGRY_PATH: &str = "src/assets/museum/guards/states/guard_angry.png";
+
 pub const DECORATIVE_ARTWORK_PATHS: [&str; 6] = [
     "src/assets/museum/walls/with_artworks/one/16.jpg",
     "src/assets/museum/walls/with_artworks/one/17.jpg",
@@ -109,6 +114,16 @@ impl AssetManager {
         }
 
         for path in DECORATIVE_ARTWORK_PATHS {
+            self.load_texture(path);
+        }
+
+        let guard_paths = [
+            GUARD_IDLE_PATH,
+            GUARD_PATROL_PATH,
+            GUARD_CHASE_PATH,
+            GUARD_ANGRY_PATH,
+        ];
+        for path in guard_paths {
             self.load_texture(path);
         }
     }

@@ -90,7 +90,154 @@ pub fn render_level_3d(
         }
     }
 
+    render_guards_3d(
+        framebuffer,
+        level,
+        camera_position,
+        camera_angle,
+        field_of_view,
+        &z_buffer,
+        asset_manager,
+    );
+
     z_buffer
+}
+
+pub fn render_guards_3d(
+    framebuffer: &mut Framebuffer,
+    level: &Level,
+    camera_position: Vector2,
+    camera_angle: f32,
+    field_of_view: f32,
+    z_buffer: &[f32],
+    asset_manager: &AssetManager,
+) {
+    if framebuffer.width == 0
+        || framebuffer.height == 0
+        || !field_of_view.is_finite()
+        || field_of_view <= 0.0
+        || field_of_view >= std::f32::consts::PI
+    {
+        return;
+    }
+
+    let half_width = framebuffer.width as f32 / 2.0;
+    let half_height = framebuffer.height as f32 / 2.0;
+    let projection_distance = half_width / (field_of_view / 2.0).tan();
+
+    let mut guard_entries: Vec<(&crate::level::Guard, f32)> = level
+        .guards
+        .iter()
+        .map(|guard| {
+            let dx = guard.position.x - camera_position.x;
+            let dy = guard.position.y - camera_position.y;
+            let dist_sq = dx * dx + dy * dy;
+            (guard, dist_sq)
+        })
+        .collect();
+
+    guard_entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    for (guard, dist_sq) in guard_entries {
+        let distance = dist_sq.sqrt();
+        if distance < 0.2 {
+            continue;
+        }
+
+        let dx = guard.position.x - camera_position.x;
+        let dy = guard.position.y - camera_position.y;
+
+        let guard_angle = dy.atan2(dx);
+        let mut angle_diff = guard_angle - camera_angle;
+
+        while angle_diff > std::f32::consts::PI {
+            angle_diff -= std::f32::consts::TAU;
+        }
+        while angle_diff < -std::f32::consts::PI {
+            angle_diff += std::f32::consts::TAU;
+        }
+
+        if angle_diff.abs() > std::f32::consts::FRAC_PI_2 + field_of_view / 2.0 {
+            continue;
+        }
+
+        let corrected_distance = distance * angle_diff.cos();
+        if corrected_distance < 0.2 {
+            continue;
+        }
+
+        let screen_x = half_width + (angle_diff / (field_of_view / 2.0)) * half_width;
+
+        let sprite_height =
+            (projection_distance / corrected_distance).min(framebuffer.height as f32 * 2.0);
+        let sprite_width = sprite_height * 0.75;
+
+        let sprite_top = half_height - sprite_height / 2.0;
+        let sprite_bottom = half_height + sprite_height / 2.0;
+        let sprite_left = screen_x - sprite_width / 2.0;
+        let sprite_right = screen_x + sprite_width / 2.0;
+
+        let start_x = (sprite_left.max(0.0).floor() as usize).min(framebuffer.width as usize);
+        let end_x = (sprite_right.min(framebuffer.width as f32).ceil() as usize)
+            .min(framebuffer.width as usize);
+
+        let sprite_path = match guard.state {
+            crate::level::GuardState::Patrol => crate::assets::GUARD_PATROL_PATH,
+            crate::level::GuardState::Alerted => crate::assets::GUARD_IDLE_PATH,
+            crate::level::GuardState::Chase => crate::assets::GUARD_CHASE_PATH,
+            crate::level::GuardState::Slowed => crate::assets::GUARD_ANGRY_PATH,
+        };
+
+        let Some(texture) = asset_manager.get_texture(sprite_path) else {
+            continue;
+        };
+
+        for (col, &depth) in z_buffer.iter().enumerate().take(end_x).skip(start_x) {
+            if corrected_distance >= depth {
+                continue;
+            }
+
+            let u = (col as f32 - sprite_left) / sprite_width;
+            if !(0.0..=1.0).contains(&u) {
+                continue;
+            }
+
+            let start_y = (sprite_top.max(0.0).floor() as u32).min(framebuffer.height);
+            let end_y = (sprite_bottom.min(framebuffer.height as f32).ceil() as u32)
+                .min(framebuffer.height);
+
+            for y in start_y..end_y {
+                let v = (y as f32 - sprite_top) / sprite_height;
+                if !(0.0..=1.0).contains(&v) {
+                    continue;
+                }
+
+                let pixel_color = texture.sample(u, v);
+                if pixel_color.a < 32
+                    || (pixel_color.r == 0
+                        && pixel_color.g == 0
+                        && pixel_color.b == 0
+                        && pixel_color.a == 0)
+                {
+                    continue;
+                }
+
+                let final_color = if guard.splattered {
+                    Color::new(
+                        ((pixel_color.r as u32 * 255 + 255 * 80) / 335).min(255) as u8,
+                        ((pixel_color.g as u32 * 50) / 255).min(255) as u8,
+                        ((pixel_color.b as u32 * 150 + 200 * 80) / 335).min(255) as u8,
+                        pixel_color.a,
+                    )
+                } else {
+                    pixel_color
+                };
+
+                framebuffer.set_current_color(final_color);
+                framebuffer.point(col as u32, y);
+            }
+        }
+    }
 }
 
 pub fn get_tile_texture<'a>(
@@ -181,10 +328,7 @@ mod tests {
             maze,
             player_spawn: Vector2::new(2.5, 2.5),
             exit: Vector2::new(2.5, 4.5),
-            guards: vec![Guard {
-                spawn: Vector2::new(2.5, 2.5),
-                position: Vector2::new(2.5, 2.5),
-            }],
+            guards: vec![Guard::new(Vector2::new(2.5, 2.5))],
             paintings: vec![PaintingTarget::new(
                 (0, 2),
                 Some("src/assets/museum/walls/with_artworks/one/1.jpg"),
@@ -240,5 +384,28 @@ mod tests {
         assert_eq!(z_buffer.len(), framebuffer.width as usize);
         assert!(z_buffer.iter().all(|distance| distance.is_finite()));
         assert!(z_buffer.iter().all(|distance| *distance > 0.0));
+    }
+
+    #[test]
+    fn render_guards_3d_runs_safely_with_all_states() {
+        let mut framebuffer = Framebuffer::new(80, 60, Color::BLACK);
+        let mut level = test_level();
+        let mut guard = Guard::new(Vector2::new(2.5, 3.5));
+        guard.splattered = true;
+        guard.state = crate::level::GuardState::Slowed;
+        level.guards = vec![guard];
+
+        let asset_manager = AssetManager::new();
+        let z_buf = vec![10.0; 80];
+
+        render_guards_3d(
+            &mut framebuffer,
+            &level,
+            Vector2::new(2.5, 2.0),
+            std::f32::consts::FRAC_PI_2,
+            std::f32::consts::FRAC_PI_3,
+            &z_buf,
+            &asset_manager,
+        );
     }
 }

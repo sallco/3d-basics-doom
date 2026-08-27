@@ -44,6 +44,9 @@ pub enum GameScreen {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ShotHitResult {
     Miss,
+    Guard {
+        guard_index: usize,
+    },
     Wall(WallMaterial),
     DecorativePainting,
     TargetPainting {
@@ -55,6 +58,10 @@ pub enum ShotHitResult {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AimedTarget {
+    Guard {
+        guard_index: usize,
+        slowed: bool,
+    },
     TargetPainting {
         painting_index: usize,
         hits: u8,
@@ -228,13 +235,56 @@ impl Game {
         }
     }
 
+    pub fn find_guard_in_sight(&self, max_distance: f32) -> Option<(usize, f32)> {
+        let dir = Vector2::new(self.player.a.cos(), self.player.a.sin());
+        let mut best_hit = None;
+        let mut min_dist = max_distance;
+
+        for (idx, guard) in self.level.guards.iter().enumerate() {
+            let to_guard = Vector2::new(
+                guard.position.x - self.player.pos.x,
+                guard.position.y - self.player.pos.y,
+            );
+            let proj = to_guard.x * dir.x + to_guard.y * dir.y;
+            if proj > 0.2 && proj < min_dist {
+                let perp_dist_sq =
+                    (to_guard.x * to_guard.x + to_guard.y * to_guard.y) - proj * proj;
+                if perp_dist_sq <= 0.45 * 0.45 {
+                    min_dist = proj;
+                    best_hit = Some((idx, proj));
+                }
+            }
+        }
+        best_hit
+    }
+
     pub fn shoot(&mut self) -> Option<ShotHitResult> {
         if self.shot_cooldown > 0.0 {
             return None;
         }
         self.shot_cooldown = SHOT_COOLDOWN;
 
-        let Some(hit) = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a) else {
+        let wall_hit = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a);
+        let max_distance = wall_hit.as_ref().map_or(30.0, |h| h.distance);
+
+        if let Some((guard_idx, _)) = self.find_guard_in_sight(max_distance) {
+            let guard = &mut self.level.guards[guard_idx];
+            guard.slowed_timer = 3.0;
+            guard.splattered = true;
+            guard.state = crate::level::GuardState::Slowed;
+
+            for (i, g) in self.level.guards.iter_mut().enumerate() {
+                if i != guard_idx && g.state == crate::level::GuardState::Patrol {
+                    g.state = crate::level::GuardState::Alerted;
+                }
+            }
+
+            return Some(ShotHitResult::Guard {
+                guard_index: guard_idx,
+            });
+        }
+
+        let Some(hit) = wall_hit else {
             return Some(ShotHitResult::Miss);
         };
 
@@ -317,7 +367,18 @@ impl Game {
     }
 
     pub fn aimed_target(&self) -> AimedTarget {
-        let Some(hit) = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a) else {
+        let wall_hit = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a);
+        let max_distance = wall_hit.as_ref().map_or(30.0, |h| h.distance);
+
+        if let Some((guard_idx, _)) = self.find_guard_in_sight(max_distance) {
+            let guard = &self.level.guards[guard_idx];
+            return AimedTarget::Guard {
+                guard_index: guard_idx,
+                slowed: guard.slowed_timer > 0.0,
+            };
+        }
+
+        let Some(hit) = wall_hit else {
             return AimedTarget::None;
         };
 
@@ -457,6 +518,17 @@ impl Game {
                 let delta_time = window.get_frame_time();
                 if self.shot_cooldown > 0.0 {
                     self.shot_cooldown = (self.shot_cooldown - delta_time).max(0.0);
+                }
+
+                for guard in &mut self.level.guards {
+                    if guard.slowed_timer > 0.0 {
+                        guard.slowed_timer = (guard.slowed_timer - delta_time).max(0.0);
+                        if guard.slowed_timer == 0.0
+                            && guard.state == crate::level::GuardState::Slowed
+                        {
+                            guard.state = crate::level::GuardState::Chase;
+                        }
+                    }
                 }
 
                 if window.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
@@ -607,6 +679,34 @@ impl Game {
         let cy = (LOGICAL_HEIGHT / 2) as i32;
 
         match self.aimed_target() {
+            AimedTarget::Guard { slowed, .. } => {
+                let color = Color::new(255, 80, 50, 255);
+                framebuffer.draw_rectangle(cx - 14, cy - 14, 7, 2, color);
+                framebuffer.draw_rectangle(cx - 14, cy - 14, 2, 7, color);
+                framebuffer.draw_rectangle(cx + 8, cy - 14, 7, 2, color);
+                framebuffer.draw_rectangle(cx + 13, cy - 14, 2, 7, color);
+                framebuffer.draw_rectangle(cx - 14, cy + 13, 7, 2, color);
+                framebuffer.draw_rectangle(cx - 14, cy + 8, 2, 7, color);
+                framebuffer.draw_rectangle(cx + 8, cy + 13, 7, 2, color);
+                framebuffer.draw_rectangle(cx + 13, cy + 8, 2, 7, color);
+                framebuffer.draw_circle(cx, cy, 3, color);
+
+                if slowed {
+                    framebuffer.draw_centered_text(
+                        "GUARDIA RALENTIZADO (50% vel)",
+                        cy + 24,
+                        16,
+                        Color::new(255, 140, 60, 255),
+                    );
+                } else {
+                    framebuffer.draw_centered_text(
+                        "GUARDIA EN LA MIRA - ¡DISPARA!",
+                        cy + 24,
+                        16,
+                        Color::new(255, 60, 60, 255),
+                    );
+                }
+            }
             AimedTarget::TargetPainting {
                 hits, completed, ..
             } => {
@@ -1224,5 +1324,34 @@ mod tests {
         game.render_hud(&mut framebuffer);
         game.render_crosshair(&mut framebuffer);
         game.render_weapon(&mut framebuffer);
+    }
+
+    #[test]
+    fn guard_hitscan_and_aiming_works() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+
+        // Position player facing guard 0
+        let guard_pos = game.level().guards[0].position;
+        game.player.pos = Vector2::new(guard_pos.x, guard_pos.y + 2.0);
+        game.player.a = -std::f32::consts::FRAC_PI_2; // facing north towards guard
+
+        let aim = game.aimed_target();
+        assert_eq!(
+            aim,
+            AimedTarget::Guard {
+                guard_index: 0,
+                slowed: false,
+            }
+        );
+
+        let shot_res = game.shoot().unwrap();
+        assert_eq!(shot_res, ShotHitResult::Guard { guard_index: 0 });
+        assert_eq!(
+            game.level().guards[0].state,
+            crate::level::GuardState::Slowed
+        );
+        assert!(game.level().guards[0].slowed_timer > 0.0);
+        assert!(game.level().guards[0].splattered);
     }
 }
