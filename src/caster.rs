@@ -99,33 +99,19 @@ pub fn render_3d(
     for column in 0..num_rays {
         let current_ray = column as f32 / num_rays as f32;
         let ray_angle = player.a - player.fov / 2.0 + player.fov * current_ray;
-        let intersect = cast_ray(
-            framebuffer,
-            maze,
-            player,
-            ray_angle,
-            block_size,
-            false,
-        );
+        let intersect = cast_ray(framebuffer, maze, player, ray_angle, block_size, false);
 
         let impact_x = player.pos.x + intersect.distance * ray_angle.cos();
         let impact_y = player.pos.y + intersect.distance * ray_angle.sin();
         let impact_column = (impact_x.max(0.0) as usize) / block_size;
         let impact_row = (impact_y.max(0.0) as usize) / block_size;
 
-        let distance_to_wall =
-            (intersect.distance * (ray_angle - player.a).cos()).max(0.0001);
-        let stake_height =
-            (block_size as f32 / distance_to_wall) * distance_to_projection_plane;
+        let distance_to_wall = (intersect.distance * (ray_angle - player.a).cos()).max(0.0001);
+        let stake_height = (block_size as f32 / distance_to_wall) * distance_to_projection_plane;
         let stake_top = (half_height - stake_height / 2.0).max(0.0) as u32;
-        let stake_bottom = (half_height + stake_height / 2.0)
-            .min(framebuffer.height as f32) as u32;
+        let stake_bottom = (half_height + stake_height / 2.0).min(framebuffer.height as f32) as u32;
 
-        let fallback_color = cell_color(
-            intersect.impact,
-            impact_row,
-            impact_column,
-        );
+        let fallback_color = cell_color(intersect.impact, impact_row, impact_column);
         let texture_dimensions = textures.dimensions(intersect.impact);
         let wall_offset = if intersect.impact == '|' {
             impact_y.rem_euclid(block_size as f32)
@@ -137,11 +123,9 @@ pub fn render_3d(
         for y in stake_top..stake_bottom {
             let color = texture_dimensions
                 .and_then(|(texture_width, texture_height)| {
-                    let texture_x =
-                        (wall_offset / block_size as f32 * texture_width as f32) as u32;
-                    let texture_y =
-                        ((y - stake_top) as f32 / stake_length as f32 * texture_height as f32)
-                            as u32;
+                    let texture_x = (wall_offset / block_size as f32 * texture_width as f32) as u32;
+                    let texture_y = ((y - stake_top) as f32 / stake_length as f32
+                        * texture_height as f32) as u32;
 
                     textures.get_pixel_color(intersect.impact, texture_x, texture_y)
                 })

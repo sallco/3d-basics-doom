@@ -19,12 +19,7 @@ fn is_walkable(maze: &Maze, x: f32, y: f32, block_size: usize) -> bool {
     )
 }
 
-pub fn process_events(
-    window: &RaylibHandle,
-    player: &mut Player,
-    maze: &Maze,
-    block_size: usize,
-) {
+pub fn process_events(window: &RaylibHandle, player: &mut Player, maze: &Maze, block_size: usize) {
     const MOVE_SPEED: f32 = 5.0;
     const ROTATION_SPEED: f32 = PI / 40.0;
 

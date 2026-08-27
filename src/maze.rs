@@ -7,23 +7,17 @@ use crate::framebuffer::Framebuffer;
 
 pub type Maze = Vec<Vec<char>>;
 
-pub fn load_maze(filename: &str) -> Maze {
-    let file = File::open(filename).unwrap();
+pub fn load_maze(filename: &str) -> std::io::Result<Maze> {
+    let file = File::open(filename)?;
     let reader = BufReader::new(file);
 
     reader
         .lines()
-        .map(|line| line.unwrap().chars().collect())
+        .map(|line| line.map(|contents| contents.chars().collect()))
         .collect()
 }
 
-fn draw_cell(
-    framebuffer: &mut Framebuffer,
-    xo: usize,
-    yo: usize,
-    block_size: usize,
-    cell: char,
-) {
+fn draw_cell(framebuffer: &mut Framebuffer, xo: usize, yo: usize, block_size: usize, cell: char) {
     let column = xo / block_size;
     let row = yo / block_size;
     let color = cell_color(cell, row, column);

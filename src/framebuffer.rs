@@ -21,11 +21,7 @@ impl Framebuffer {
     }
 
     pub fn clear(&mut self) {
-        self.color_buffer = Image::gen_image_color(
-            self.width as i32,
-            self.height as i32,
-            self.background_color,
-        );
+        self.color_buffer.clear_background(self.background_color);
     }
 
     pub fn point(&mut self, x: u32, y: u32) {
@@ -35,48 +31,60 @@ impl Framebuffer {
         }
     }
 
-    pub fn get_color(&self, x: u32, y: u32) -> Color {
-        if x < self.width && y < self.height {
-            self.color_buffer.get_color(x as i32, y as i32)
-        } else {
-            self.background_color
-        }
-    }
-
-    pub fn set_background_color(&mut self, color: Color) {
-        self.background_color = color;
-    }
-
     pub fn set_current_color(&mut self, color: Color) {
         self.current_color = color;
     }
 
-    pub fn render_to_file(&self, file_path: &str) {
-        self.color_buffer.export_image(file_path);
+    pub fn draw_centered_text(&mut self, text: &str, y: i32, font_size: i32, color: Color) {
+        // La fuente predeterminada de Raylib tiene glifos de aproximadamente media em.
+        // Esta estimación evita acoplar el framebuffer lógico al handle de la ventana.
+        let width = text.chars().count() as i32 * font_size / 2;
+        let x = (self.width as i32 - width) / 2;
+        self.color_buffer.draw_text(text, x, y, font_size, color);
     }
 
-    pub fn swap_buffers(&self, window: &mut RaylibHandle, raylib_thread: &RaylibThread) {
-        self.swap_buffers_scaled(window, raylib_thread, 1.0);
-    }
-
-    pub fn swap_buffers_scaled(
+    pub fn present(
         &self,
         window: &mut RaylibHandle,
         raylib_thread: &RaylibThread,
-        scale: f32,
-    ) {
-        if let Ok(texture) = window.load_texture_from_image(raylib_thread, &self.color_buffer) {
-            texture.set_texture_filter(raylib_thread, TextureFilter::TEXTURE_FILTER_POINT);
+        texture: &mut Texture2D,
+    ) -> Result<(), String> {
+        let colors = self.color_buffer.get_image_data();
+        // `raylib::Color` es #[repr(C)] y contiene exactamente cuatro canales u8.
+        // Reinterpretar la vista evita una segunda copia al actualizar la textura GPU.
+        let pixels = unsafe {
+            std::slice::from_raw_parts(
+                colors.as_ptr().cast::<u8>(),
+                std::mem::size_of_val(colors.as_ref()),
+            )
+        };
+        texture
+            .update_texture(pixels)
+            .map_err(|error| format!("no se pudo actualizar el framebuffer: {error}"))?;
 
-            let mut renderer = window.begin_drawing(raylib_thread);
+        let window_width = window.get_screen_width() as f32;
+        let window_height = window.get_screen_height() as f32;
+        let scale = (window_width / self.width as f32).min(window_height / self.height as f32);
+        let destination_width = self.width as f32 * scale;
+        let destination_height = self.height as f32 * scale;
+        let destination = Rectangle::new(
+            (window_width - destination_width) / 2.0,
+            (window_height - destination_height) / 2.0,
+            destination_width,
+            destination_height,
+        );
 
-            renderer.draw_texture_ex(
-                &texture,
-                Vector2::new(0.0, 0.0),
-                0.0,
-                scale,
-                Color::WHITE,
-            );
-        }
+        let mut renderer = window.begin_drawing(raylib_thread);
+        renderer.clear_background(Color::BLACK);
+        renderer.draw_texture_pro(
+            texture,
+            Rectangle::new(0.0, 0.0, self.width as f32, self.height as f32),
+            destination,
+            Vector2::zero(),
+            0.0,
+            Color::WHITE,
+        );
+
+        Ok(())
     }
 }
