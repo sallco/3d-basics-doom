@@ -3,6 +3,7 @@ mod events;
 mod framebuffer;
 mod game;
 mod level;
+mod levels;
 mod maze;
 mod player;
 mod textures;
