@@ -1,16 +1,16 @@
-222222222222222222222222
-2p d  1d  dd  d3  dd  T2
-2 2d  dd  dd  dd  dd  d2
-2 dd  1d  3d  d3  4d  dd
-2      e       e       2
-2 dd  1d  3d  d3  dd  d2
-2 4T  1d  3T  3d  4T  d2
-2                      2
-2 dd  2d  4d  1d  dd  d2
-2 3d  2T  4d  1d  3d  dd
-2      e       e       2
-2 dd  2d  4d  1d  dd  d2
-2 1d  2d  4d  1d  4d  d2
-2                      2
-2     1d  dd  3d  d4   2
-22222222222222222222g222
+dddddddddddddddddddddddd
+dp d  dd  dd  dd  dd  Td
+d dd  dd  dd  dd  dd  dd
+d dd  dd  dd  dd  dd  dd
+d      e       e       d
+d dd  dd  dd  dd  dd  dd
+d dT  dd  dT  dd  dT  dd
+d                      d
+d dd  dd  dd  dd  dd  dd
+d dd  dT  dd  dd  dd  dd
+d      e       e       d
+d dd  dd  dd  dd  dd  dd
+d dd  dd  dd  dd  dd  dd
+d                      d
+d     dd  dd  dd  dd   d
+ddddddddddddddddddddgddd

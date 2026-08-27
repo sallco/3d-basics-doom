@@ -1292,7 +1292,10 @@ mod tests {
         game.player.a = -std::f32::consts::FRAC_PI_2;
 
         let result = game.shoot().unwrap();
-        assert!(matches!(result, ShotHitResult::Wall(_)));
+        assert!(matches!(
+            result,
+            ShotHitResult::Wall(_) | ShotHitResult::DecorativePainting
+        ));
         assert_eq!(game.completed_paintings_count(), 0);
     }
 
@@ -1351,11 +1354,14 @@ mod tests {
             }
         );
 
-        // Turn player away towards empty wall
+        // Turn player away towards exhibition wall
         game.player.pos = Vector2::new(1.5, 1.5);
         game.player.a = -std::f32::consts::FRAC_PI_2;
         let aim_wall = game.aimed_target();
-        assert!(matches!(aim_wall, AimedTarget::Wall(_)));
+        assert!(matches!(
+            aim_wall,
+            AimedTarget::Wall(_) | AimedTarget::DecorativePainting
+        ));
     }
 
     #[test]

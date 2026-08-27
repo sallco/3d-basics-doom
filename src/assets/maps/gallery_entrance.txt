@@ -1,12 +1,12 @@
-1111111111111111
-1p d  1d  d1  T1
-1 1d d      d 11
-1 dd 2      2 dd
-1     ee       1
-1 dd 3      3 dd
-1 4T 3  3T  3 41
-1              1
-1 dd 4      4 dd
-1 2d dd    dd d1
-1     1d  d1   1
-1111111111111g11
+dddddddddddddddd
+dp d  dd  dd  Td
+d dd d      d dd
+d dd d      d dd
+d     ee       d
+d dd d      d dd
+d dT d  dT  d dd
+d              d
+d dd d      d dd
+d dd dd    dd dd
+d     dd  dd   d
+dddddddddddddgdd
