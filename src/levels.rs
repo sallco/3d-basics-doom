@@ -24,8 +24,7 @@ const NIGHT_ARCHIVE_PAINTINGS: [&str; 7] = [
     "src/assets/museum/walls/with_artworks/two/20.jpg",
 ];
 
-#[allow(dead_code)] // El selector de niveles lo utilizará al migrar Game.
-pub const LEVEL_DEFINITIONS: [LevelDefinition; 3] = [
+pub static LEVEL_DEFINITIONS: [LevelDefinition; 3] = [
     LevelDefinition {
         name: "Galería de ingreso",
         map_path: "src/assets/maps/gallery_entrance.txt",

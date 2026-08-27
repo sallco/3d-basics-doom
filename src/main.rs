@@ -1,18 +1,16 @@
-mod caster;
 mod events;
 mod framebuffer;
 mod game;
 mod level;
 mod levels;
-mod maze;
 mod movement;
 mod player;
 mod raycasting;
 mod renderer;
-mod textures;
 
 use framebuffer::Framebuffer;
 use game::{Game, LOGICAL_HEIGHT, LOGICAL_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH};
+use levels::LEVEL_DEFINITIONS;
 use raylib::prelude::*;
 
 fn main() {
@@ -37,7 +35,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|error| format!("no se pudo crear la textura de presentación: {error}"))?;
     presentation_texture.set_texture_filter(&raylib_thread, TextureFilter::TEXTURE_FILTER_POINT);
 
-    let mut game = Game::new("src/assets/maze.txt")?;
+    let mut game = Game::new(&LEVEL_DEFINITIONS[0])?;
 
     while !window.window_should_close() {
         game.update(&window);

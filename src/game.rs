@@ -3,18 +3,16 @@ use std::fmt::{Display, Formatter};
 
 use raylib::prelude::*;
 
-use crate::caster::{cast_ray, render_3d};
 use crate::events::process_events;
 use crate::framebuffer::Framebuffer;
-use crate::maze::{Maze, load_maze, render_maze};
+use crate::level::{Level, LevelDefinition, LevelError, load_level};
 use crate::player::Player;
-use crate::textures::TextureManager;
+use crate::renderer::render_level_3d;
 
 pub const LOGICAL_WIDTH: u32 = 960;
 pub const LOGICAL_HEIGHT: u32 = 540;
 pub const WINDOW_WIDTH: i32 = 1280;
 pub const WINDOW_HEIGHT: i32 = 720;
-const BLOCK_SIZE: usize = 36;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GameScreen {
@@ -29,20 +27,13 @@ pub enum GameScreen {
 
 #[derive(Debug)]
 pub enum GameError {
-    Maze(std::io::Error),
-    MissingPlayerSpawn,
+    Level(LevelError),
 }
 
 impl Display for GameError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Maze(error) => write!(formatter, "no se pudo cargar el mapa: {error}"),
-            Self::MissingPlayerSpawn => {
-                write!(
-                    formatter,
-                    "el mapa no contiene una posición de jugador ('p')"
-                )
-            }
+            Self::Level(error) => Display::fmt(error, formatter),
         }
     }
 }
@@ -50,39 +41,30 @@ impl Display for GameError {
 impl Error for GameError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Maze(error) => Some(error),
-            Self::MissingPlayerSpawn => None,
+            Self::Level(error) => Some(error),
         }
     }
 }
 
 pub struct Game {
     screen: GameScreen,
-    maze: Maze,
+    level_definition: &'static LevelDefinition,
+    level: Level,
     player: Player,
-    textures: TextureManager,
-    show_3d: bool,
+    exit_unlocked: bool,
 }
 
 impl Game {
-    pub fn new(maze_path: &str) -> Result<Self, GameError> {
-        let maze = load_maze(maze_path).map_err(GameError::Maze)?;
-        let (player_row, player_column) = find_player_spawn(&maze)?;
-
-        let textures = TextureManager::load_defaults().unwrap_or_else(|error| {
-            eprintln!("Advertencia: {error}. Se usarán colores de respaldo.");
-            TextureManager::new()
-        });
+    pub fn new(level_definition: &'static LevelDefinition) -> Result<Self, GameError> {
+        let level = load_level(level_definition.map_path).map_err(GameError::Level)?;
+        let player = Player::new(level.player_spawn);
 
         Ok(Self {
             screen: GameScreen::Welcome,
-            maze,
-            player: Player::new(Vector2::new(
-                (player_column * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
-                (player_row * BLOCK_SIZE + BLOCK_SIZE / 2) as f32,
-            )),
-            textures,
-            show_3d: true,
+            level_definition,
+            level,
+            player,
+            exit_unlocked: false,
         })
     }
 
@@ -104,11 +86,13 @@ impl Game {
                     return;
                 }
 
-                process_events(window, &mut self.player, &self.maze, BLOCK_SIZE);
-
-                if window.is_key_pressed(KeyboardKey::KEY_M) {
-                    self.show_3d = !self.show_3d;
-                }
+                process_events(
+                    window,
+                    &mut self.player,
+                    &self.level.maze,
+                    window.get_frame_time(),
+                    self.exit_unlocked,
+                );
             }
             GameScreen::Success | GameScreen::GameOver => {
                 if confirm_pressed(window) {
@@ -123,7 +107,7 @@ impl Game {
 
         match self.screen {
             GameScreen::Welcome => render_welcome(framebuffer),
-            GameScreen::LevelSelect => render_level_select(framebuffer),
+            GameScreen::LevelSelect => render_level_select(framebuffer, self.level_definition.name),
             GameScreen::Playing => self.render_playing(framebuffer),
             GameScreen::Success => render_message_screen(
                 framebuffer,
@@ -141,46 +125,15 @@ impl Game {
     }
 
     fn render_playing(&self, framebuffer: &mut Framebuffer) {
-        if self.show_3d {
-            render_3d(
-                framebuffer,
-                &self.maze,
-                &self.player,
-                BLOCK_SIZE,
-                &self.textures,
-            );
-            return;
-        }
-
-        render_maze(framebuffer, &self.maze, BLOCK_SIZE);
-
-        for ray_index in 0..framebuffer.width {
-            let current_ray = ray_index as f32 / framebuffer.width as f32;
-            let ray_angle = self.player.a - self.player.fov / 2.0 + self.player.fov * current_ray;
-
-            cast_ray(
-                framebuffer,
-                &self.maze,
-                &self.player,
-                ray_angle,
-                BLOCK_SIZE,
-                true,
-            );
-        }
-
-        self.player.draw(framebuffer);
+        render_level_3d(
+            framebuffer,
+            &self.level.maze,
+            self.player.pos,
+            self.player.a,
+            self.player.fov,
+            self.exit_unlocked,
+        );
     }
-}
-
-fn find_player_spawn(maze: &Maze) -> Result<(usize, usize), GameError> {
-    maze.iter()
-        .enumerate()
-        .find_map(|(row_index, row)| {
-            row.iter()
-                .position(|&cell| cell == 'p')
-                .map(|column_index| (row_index, column_index))
-        })
-        .ok_or(GameError::MissingPlayerSpawn)
 }
 
 fn confirm_pressed(window: &RaylibHandle) -> bool {
@@ -198,15 +151,10 @@ fn render_welcome(framebuffer: &mut Framebuffer) {
     framebuffer.draw_centered_text("ENTER para comenzar", 385, 28, Color::GOLD);
 }
 
-fn render_level_select(framebuffer: &mut Framebuffer) {
+fn render_level_select(framebuffer: &mut Framebuffer, level_name: &str) {
     framebuffer.draw_centered_text("SELECCION DE NIVEL", 120, 46, Color::RAYWHITE);
-    framebuffer.draw_centered_text("Galeria original", 260, 34, Color::GOLD);
-    framebuffer.draw_centered_text(
-        "Por ahora hay un nivel disponible - ENTER para jugar",
-        330,
-        22,
-        Color::LIGHTGRAY,
-    );
+    framebuffer.draw_centered_text(level_name, 260, 34, Color::GOLD);
+    framebuffer.draw_centered_text("ENTER para jugar", 330, 22, Color::LIGHTGRAY);
 }
 
 fn render_message_screen(framebuffer: &mut Framebuffer, title: &str, subtitle: &str, color: Color) {
@@ -217,22 +165,15 @@ fn render_message_screen(framebuffer: &mut Framebuffer, title: &str, subtitle: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::levels::LEVEL_DEFINITIONS;
 
     #[test]
-    fn finds_player_in_rectangular_maze() {
-        let maze = vec![vec!['+', '-', '+'], vec!['|', 'p', '|']];
+    fn starts_on_welcome_with_semantic_level_spawn() {
+        let game = Game::new(&LEVEL_DEFINITIONS[0]).unwrap();
 
-        assert_eq!(find_player_spawn(&maze).unwrap(), (1, 1));
-    }
-
-    #[test]
-    fn reports_missing_player_without_panicking() {
-        let maze = vec![vec!['+', '-', '+']];
-
-        assert!(matches!(
-            find_player_spawn(&maze),
-            Err(GameError::MissingPlayerSpawn)
-        ));
+        assert_eq!(game.screen, GameScreen::Welcome);
+        assert_eq!(game.player.pos, game.level.player_spawn);
+        assert_eq!(game.level_definition.name, "Galería de ingreso");
     }
 
     #[test]
