@@ -10,6 +10,7 @@ use crate::level::{
     Level, LevelDefinition, LevelError, LevelSummary, PaintSplatter, Tile, WallMaterial,
     load_level_definition, summarize_level,
 };
+use crate::minimap::render_minimap;
 use crate::player::Player;
 use crate::raycasting::cast_ray_dda;
 use crate::renderer::render_level_3d;
@@ -522,6 +523,14 @@ impl Game {
             self.player.fov,
             self.exit_unlocked,
             &self.asset_manager,
+        );
+
+        render_minimap(
+            framebuffer,
+            &self.level,
+            self.player.pos,
+            self.player.a,
+            self.exit_unlocked,
         );
 
         self.render_weapon(framebuffer);

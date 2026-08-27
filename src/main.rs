@@ -4,6 +4,7 @@ mod framebuffer;
 mod game;
 mod level;
 mod levels;
+mod minimap;
 mod movement;
 mod player;
 mod raycasting;

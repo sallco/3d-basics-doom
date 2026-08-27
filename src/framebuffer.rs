@@ -56,6 +56,11 @@ impl Framebuffer {
             .draw_circle(center_x, center_y, radius, color);
     }
 
+    pub fn draw_line(&mut self, start_x: i32, start_y: i32, end_x: i32, end_y: i32, color: Color) {
+        self.color_buffer
+            .draw_line(start_x, start_y, end_x, end_y, color);
+    }
+
     pub fn draw_rectangle_lines(
         &mut self,
         x: i32,
