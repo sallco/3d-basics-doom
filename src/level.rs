@@ -1,4 +1,4 @@
-use raylib::prelude::Vector2;
+use raylib::prelude::{Color, Vector2};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs;
@@ -304,11 +304,7 @@ pub fn build_level_with_assets(
                 }
                 MapSymbol::Tile(Tile::TargetPainting) => {
                     let asset_path = painting_assets.get(paintings.len()).copied();
-                    paintings.push(PaintingTarget {
-                        map_position: (row_index, column_index),
-                        hits: 0,
-                        asset_path,
-                    });
+                    paintings.push(PaintingTarget::new((row_index, column_index), asset_path));
                     Tile::TargetPainting
                 }
                 MapSymbol::Tile(tile) => tile,
@@ -422,12 +418,42 @@ pub struct Guard {
     pub position: Vector2,
 }
 
-#[allow(dead_code)] // Su progreso se conectará al sistema de disparos posteriormente.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PaintSplatter {
+    pub u: f32,
+    pub v: f32,
+    pub radius: f32,
+    pub color: Color,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct PaintingTarget {
     pub map_position: (usize, usize),
     pub hits: u8,
     pub asset_path: Option<&'static str>,
+    pub splatters: Vec<PaintSplatter>,
+}
+
+impl PaintingTarget {
+    pub fn new(map_position: (usize, usize), asset_path: Option<&'static str>) -> Self {
+        Self {
+            map_position,
+            hits: 0,
+            asset_path,
+            splatters: Vec::new(),
+        }
+    }
+
+    pub fn splatter_color_at(&self, u: f32, v: f32) -> Option<Color> {
+        for splatter in self.splatters.iter().rev() {
+            let du = u - splatter.u;
+            let dv = v - splatter.v;
+            if du * du + dv * dv <= splatter.radius * splatter.radius {
+                return Some(splatter.color);
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]

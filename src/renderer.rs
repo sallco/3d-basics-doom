@@ -53,10 +53,26 @@ pub fn render_level_3d(
         let wall_bottom = (half_height + wall_height / 2.0).min(framebuffer.height as f32) as u32;
 
         let texture = get_tile_texture(&hit, level, asset_manager);
+        let target_painting = if matches!(hit.tile, Tile::TargetPainting) {
+            level
+                .paintings
+                .iter()
+                .find(|p| p.map_position == hit.map_position)
+        } else {
+            None
+        };
 
         for y in wall_top..wall_bottom {
-            let mut color = if let Some(texture) = texture {
-                let v = (y as f32 - wall_top_float) / wall_height;
+            let v = (y as f32 - wall_top_float) / wall_height;
+            let mut color = if let Some(painting) = target_painting {
+                if let Some(splatter_color) = painting.splatter_color_at(hit.texture_u, v) {
+                    splatter_color
+                } else if let Some(texture) = texture {
+                    texture.sample(hit.texture_u, v)
+                } else {
+                    tile_color(hit.tile, exit_unlocked)
+                }
+            } else if let Some(texture) = texture {
                 texture.sample(hit.texture_u, v)
             } else {
                 tile_color(hit.tile, exit_unlocked)
@@ -163,11 +179,10 @@ mod tests {
                 spawn: Vector2::new(2.5, 2.5),
                 position: Vector2::new(2.5, 2.5),
             }],
-            paintings: vec![PaintingTarget {
-                map_position: (0, 2),
-                hits: 0,
-                asset_path: Some("src/assets/museum/walls/with_artworks/one/1.jpg"),
-            }],
+            paintings: vec![PaintingTarget::new(
+                (0, 2),
+                Some("src/assets/museum/walls/with_artworks/one/1.jpg"),
+            )],
         }
     }
 

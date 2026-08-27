@@ -7,15 +7,20 @@ use crate::assets::AssetManager;
 use crate::events::process_events;
 use crate::framebuffer::Framebuffer;
 use crate::level::{
-    Level, LevelDefinition, LevelError, LevelSummary, load_level_definition, summarize_level,
+    Level, LevelDefinition, LevelError, LevelSummary, PaintSplatter, Tile, WallMaterial,
+    load_level_definition, summarize_level,
 };
 use crate::player::Player;
+use crate::raycasting::cast_ray_dda;
 use crate::renderer::render_level_3d;
 
 pub const LOGICAL_WIDTH: u32 = 960;
 pub const LOGICAL_HEIGHT: u32 = 540;
 pub const WINDOW_WIDTH: i32 = 1280;
 pub const WINDOW_HEIGHT: i32 = 720;
+
+pub const SHOT_COOLDOWN: f32 = 0.30;
+pub const REQUIRED_HITS_PER_PAINTING: u8 = 3;
 
 const CARD_START_X: f32 = 40.0;
 const CARD_Y: f32 = 120.0;
@@ -32,6 +37,18 @@ pub enum GameScreen {
     Success,
     #[allow(dead_code)] // Se activará al implementar las vidas del jugador.
     GameOver,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ShotHitResult {
+    Miss,
+    Wall(WallMaterial),
+    DecorativePainting,
+    TargetPainting {
+        painting_index: usize,
+        hits: u8,
+        completed: bool,
+    },
 }
 
 #[derive(Debug)]
@@ -73,6 +90,7 @@ pub struct Game {
     level: Level,
     player: Player,
     exit_unlocked: bool,
+    shot_cooldown: f32,
     asset_manager: AssetManager,
 }
 
@@ -102,6 +120,7 @@ impl Game {
             level,
             player,
             exit_unlocked: false,
+            shot_cooldown: 0.0,
             asset_manager,
         })
     }
@@ -181,6 +200,7 @@ impl Game {
         self.player = Player::new(level.player_spawn);
         self.level = level;
         self.exit_unlocked = false;
+        self.shot_cooldown = 0.0;
         self.screen = GameScreen::Playing;
         Ok(())
     }
@@ -189,6 +209,99 @@ impl Game {
         if let Err(error) = self.start_selected_level() {
             eprintln!("Error al cargar nivel: {error}");
         }
+    }
+
+    pub fn shoot(&mut self) -> Option<ShotHitResult> {
+        if self.shot_cooldown > 0.0 {
+            return None;
+        }
+        self.shot_cooldown = SHOT_COOLDOWN;
+
+        let Some(hit) = cast_ray_dda(&self.level.maze, self.player.pos, self.player.a) else {
+            return Some(ShotHitResult::Miss);
+        };
+
+        match hit.tile {
+            Tile::TargetPainting => {
+                let mut shot_result = None;
+                if let Some((index, painting)) = self
+                    .level
+                    .paintings
+                    .iter_mut()
+                    .enumerate()
+                    .find(|(_, p)| p.map_position == hit.map_position)
+                {
+                    let completed_before = painting.hits >= REQUIRED_HITS_PER_PAINTING;
+                    if !completed_before {
+                        painting.hits += 1;
+                        let splatter = generate_splatter(painting.hits, hit.texture_u);
+                        painting.splatters.push(splatter);
+                    }
+
+                    shot_result = Some(ShotHitResult::TargetPainting {
+                        painting_index: index,
+                        hits: painting.hits,
+                        completed: painting.hits >= REQUIRED_HITS_PER_PAINTING,
+                    });
+                }
+
+                if let Some(result) = shot_result {
+                    self.update_exit_unlock_state();
+                    Some(result)
+                } else {
+                    Some(ShotHitResult::Miss)
+                }
+            }
+            Tile::Wall(material) => Some(ShotHitResult::Wall(material)),
+            Tile::DecorativePainting => Some(ShotHitResult::DecorativePainting),
+            Tile::Floor | Tile::Exit => Some(ShotHitResult::Miss),
+        }
+    }
+
+    pub fn update_exit_unlock_state(&mut self) {
+        if !self.level.paintings.is_empty()
+            && self
+                .level
+                .paintings
+                .iter()
+                .all(|p| p.hits >= REQUIRED_HITS_PER_PAINTING)
+        {
+            self.exit_unlocked = true;
+        }
+    }
+
+    #[allow(dead_code)] // Expuesto para HUD y pruebas.
+    pub fn shot_cooldown(&self) -> f32 {
+        self.shot_cooldown
+    }
+
+    #[allow(dead_code)] // Expuesto para HUD y pruebas.
+    pub fn completed_paintings_count(&self) -> usize {
+        self.level
+            .paintings
+            .iter()
+            .filter(|p| p.hits >= REQUIRED_HITS_PER_PAINTING)
+            .count()
+    }
+
+    #[allow(dead_code)] // Expuesto para HUD y pruebas.
+    pub fn total_paintings_count(&self) -> usize {
+        self.level.paintings.len()
+    }
+
+    pub fn check_exit_reached(&self) -> bool {
+        let player_cell_x = self.player.pos.x.floor() as usize;
+        let player_cell_y = self.player.pos.y.floor() as usize;
+        let exit_cell_x = self.level.exit.x.floor() as usize;
+        let exit_cell_y = self.level.exit.y.floor() as usize;
+
+        if player_cell_x == exit_cell_x && player_cell_y == exit_cell_y {
+            return true;
+        }
+
+        let dx = self.player.pos.x - self.level.exit.x;
+        let dy = self.player.pos.y - self.level.exit.y;
+        dx * dx + dy * dy <= 0.64
     }
 
     #[allow(dead_code)] // Expuesto para inspección y pruebas del jugador.
@@ -285,13 +398,29 @@ impl Game {
                     return;
                 }
 
+                let delta_time = window.get_frame_time();
+                if self.shot_cooldown > 0.0 {
+                    self.shot_cooldown = (self.shot_cooldown - delta_time).max(0.0);
+                }
+
+                if window.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)
+                    || window.is_key_pressed(KeyboardKey::KEY_SPACE)
+                {
+                    self.shoot();
+                }
+
                 process_events(
                     window,
                     &mut self.player,
                     &self.level.maze,
-                    window.get_frame_time(),
+                    delta_time,
                     self.exit_unlocked,
                 );
+
+                if self.exit_unlocked && self.check_exit_reached() {
+                    window.enable_cursor();
+                    self.screen = GameScreen::Success;
+                }
             }
             GameScreen::Success | GameScreen::GameOver => {
                 window.enable_cursor();
@@ -339,6 +468,23 @@ impl Game {
             self.exit_unlocked,
             &self.asset_manager,
         );
+    }
+}
+
+fn generate_splatter(hit_number: u8, hit_u: f32) -> PaintSplatter {
+    let (u_offset, v, color) = match hit_number {
+        1 => (0.0, 0.38, Color::new(255, 30, 120, 255)),
+        2 => (0.18, 0.62, Color::new(0, 230, 255, 255)),
+        _ => (-0.18, 0.50, Color::new(255, 215, 0, 255)),
+    };
+    let u = (hit_u + u_offset).clamp(0.15, 0.85);
+    let radius = 0.12;
+
+    PaintSplatter {
+        u,
+        v,
+        radius,
+        color,
     }
 }
 
@@ -672,5 +818,113 @@ mod tests {
             let path = painting.asset_path.unwrap();
             assert!(game.asset_manager().get_texture(path).is_some());
         }
+    }
+
+    #[test]
+    fn shoot_hits_target_painting_and_advances_hits_up_to_max() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+
+        // Level 1: target painting is at (1, 3) (or in view), let's place player in front aiming at painting (1, 3)
+        let target_pos = game.level().paintings[0].map_position;
+        game.player.pos = Vector2::new(target_pos.1 as f32 + 0.5, target_pos.0 as f32 + 1.5);
+        game.player.a = -std::f32::consts::FRAC_PI_2; // Aiming north towards row - 1
+
+        let result1 = game.shoot().unwrap();
+        assert_eq!(
+            result1,
+            ShotHitResult::TargetPainting {
+                painting_index: 0,
+                hits: 1,
+                completed: false,
+            }
+        );
+        assert_eq!(game.level().paintings[0].hits, 1);
+        assert_eq!(game.level().paintings[0].splatters.len(), 1);
+
+        // Reset cooldown for test
+        game.shot_cooldown = 0.0;
+        let result2 = game.shoot().unwrap();
+        assert_eq!(
+            result2,
+            ShotHitResult::TargetPainting {
+                painting_index: 0,
+                hits: 2,
+                completed: false,
+            }
+        );
+
+        game.shot_cooldown = 0.0;
+        let result3 = game.shoot().unwrap();
+        assert_eq!(
+            result3,
+            ShotHitResult::TargetPainting {
+                painting_index: 0,
+                hits: 3,
+                completed: true,
+            }
+        );
+
+        // 4th shot caps at 3 hits
+        game.shot_cooldown = 0.0;
+        let result4 = game.shoot().unwrap();
+        assert_eq!(
+            result4,
+            ShotHitResult::TargetPainting {
+                painting_index: 0,
+                hits: 3,
+                completed: true,
+            }
+        );
+        assert_eq!(game.level().paintings[0].hits, 3);
+    }
+
+    #[test]
+    fn shooting_normal_walls_does_not_advance_paintings() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+
+        // Aim at outer boundary wall (0, 1) from (1.5, 1.5) aiming north
+        game.player.pos = Vector2::new(1.5, 1.5);
+        game.player.a = -std::f32::consts::FRAC_PI_2;
+
+        let result = game.shoot().unwrap();
+        assert!(matches!(result, ShotHitResult::Wall(_)));
+        assert_eq!(game.completed_paintings_count(), 0);
+    }
+
+    #[test]
+    fn completing_all_paintings_unlocks_exit_and_reaching_exit_triggers_success() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+        assert!(!game.exit_unlocked());
+
+        // Complete each painting by setting hits to 3
+        for painting in &mut game.level.paintings {
+            painting.hits = 3;
+            painting.splatters.push(generate_splatter(1, 0.5));
+            painting.splatters.push(generate_splatter(2, 0.5));
+            painting.splatters.push(generate_splatter(3, 0.5));
+        }
+
+        game.update_exit_unlock_state();
+        assert!(game.exit_unlocked());
+
+        // Move player to exit
+        game.player.pos = game.level.exit;
+        assert!(game.check_exit_reached());
+    }
+
+    #[test]
+    fn shot_cooldown_delays_consecutive_shots() {
+        let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
+        game.start_selected_level().unwrap();
+
+        let first = game.shoot();
+        assert!(first.is_some());
+        assert!(game.shot_cooldown() > 0.0);
+
+        let second = game.shoot();
+        assert!(second.is_none());
     }
 }
