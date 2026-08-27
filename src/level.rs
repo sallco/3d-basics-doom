@@ -27,6 +27,14 @@ impl Tile {
     pub fn is_solid(self) -> bool {
         !matches!(self, Self::Floor)
     }
+
+    pub fn blocks_movement(self, exit_unlocked: bool) -> bool {
+        match self {
+            Self::Floor => false,
+            Self::Exit => !exit_unlocked,
+            _ => true,
+        }
+    }
 }
 
 pub type LevelMap = Vec<Vec<Tile>>;

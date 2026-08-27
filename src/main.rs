@@ -5,6 +5,7 @@ mod game;
 mod level;
 mod levels;
 mod maze;
+mod movement;
 mod player;
 mod raycasting;
 mod renderer;
