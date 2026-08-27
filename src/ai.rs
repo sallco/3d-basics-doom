@@ -4,11 +4,11 @@ use raylib::prelude::Vector2;
 
 use crate::level::{Guard, GuardState, Tile};
 
-pub const PATROL_SPEED: f32 = 1.2;
-pub const CHASE_SPEED: f32 = 2.2;
-pub const SLOWED_SPEED_MULTIPLIER: f32 = 0.5;
-pub const DETECTION_RADIUS: f32 = 6.5;
-pub const CAPTURE_RADIUS: f32 = 0.55;
+pub const PATROL_SPEED: f32 = 0.65;
+pub const CHASE_SPEED: f32 = 1.10;
+pub const SLOWED_SPEED_MULTIPLIER: f32 = 0.40;
+pub const DETECTION_RADIUS: f32 = 5.0;
+pub const CAPTURE_RADIUS: f32 = 0.48;
 
 pub fn is_cell_walkable(maze: &[Vec<Tile>], row: usize, col: usize) -> bool {
     if row >= maze.len() || col >= maze[row].len() {

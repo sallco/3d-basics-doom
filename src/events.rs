@@ -6,7 +6,7 @@ use crate::player::Player;
 
 pub const MOVE_SPEED: f32 = 2.5;
 pub const ROTATION_SPEED: f32 = 1.8;
-pub const MOUSE_SENSITIVITY: f32 = 0.003;
+pub const MOUSE_SENSITIVITY: f32 = 0.0035;
 pub const MAX_DELTA_TIME: f32 = 0.05;
 
 pub fn process_events(
@@ -133,7 +133,7 @@ mod tests {
 
         let mouse_only =
             compute_rotation_delta(0.0, ROTATION_SPEED, 0.016, 10.0, MOUSE_SENSITIVITY);
-        assert!((mouse_only - 10.0 * 0.003).abs() < 1e-6);
+        assert!((mouse_only - 10.0 * MOUSE_SENSITIVITY).abs() < 1e-6);
 
         let combined = compute_rotation_delta(1.0, ROTATION_SPEED, 0.016, 10.0, MOUSE_SENSITIVITY);
         assert!((combined - (keyboard_only + mouse_only)).abs() < 1e-6);

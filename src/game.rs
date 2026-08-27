@@ -556,7 +556,9 @@ impl Game {
                 }
             }
             GameScreen::Playing => {
-                window.disable_cursor();
+                if !window.is_cursor_hidden() {
+                    window.disable_cursor();
+                }
 
                 if window.is_key_pressed(KeyboardKey::KEY_ESCAPE) {
                     window.enable_cursor();
@@ -1383,10 +1385,10 @@ mod tests {
         let mut game = Game::new(&LEVEL_DEFINITIONS).unwrap();
         game.start_selected_level().unwrap();
 
-        // Position player facing guard 0
+        // Position player in open hallway facing guard 0
         let guard_pos = game.level().guards[0].position;
-        game.player.pos = Vector2::new(guard_pos.x, guard_pos.y + 2.0);
-        game.player.a = -std::f32::consts::FRAC_PI_2; // facing north towards guard
+        game.player.pos = Vector2::new(guard_pos.x, guard_pos.y - 2.0);
+        game.player.a = std::f32::consts::FRAC_PI_2; // facing south towards guard
 
         let aim = game.aimed_target();
         assert_eq!(

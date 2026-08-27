@@ -14,18 +14,33 @@ pub const GUARD_PATROL_PATH: &str = "src/assets/museum/guards/states/guard_patro
 pub const GUARD_CHASE_PATH: &str = "src/assets/museum/guards/states/guard_chase.png";
 pub const GUARD_ANGRY_PATH: &str = "src/assets/museum/guards/states/guard_angry.png";
 
-pub const DECORATIVE_ARTWORK_PATHS: [&str; 6] = [
+pub const ALL_MUSEUM_ARTWORKS: [&str; 21] = [
+    "src/assets/museum/walls/with_artworks/one/1.jpg",
+    "src/assets/museum/walls/with_artworks/one/5.jpg",
+    "src/assets/museum/walls/with_artworks/one/8.jpg",
+    "src/assets/museum/walls/with_artworks/one/11.jpg",
+    "src/assets/museum/walls/with_artworks/one/14.jpg",
+    "src/assets/museum/walls/with_artworks/one/15.jpg",
     "src/assets/museum/walls/with_artworks/one/16.jpg",
     "src/assets/museum/walls/with_artworks/one/17.jpg",
     "src/assets/museum/walls/with_artworks/one/18.jpg",
     "src/assets/museum/walls/with_artworks/one/19.jpg",
+    "src/assets/museum/walls/with_artworks/two/3.jpg",
+    "src/assets/museum/walls/with_artworks/two/6.jpg",
+    "src/assets/museum/walls/with_artworks/two/9.jpg",
+    "src/assets/museum/walls/with_artworks/two/12.jpg",
+    "src/assets/museum/walls/with_artworks/two/20.jpg",
     "src/assets/museum/walls/with_artworks/two/21.jpg",
     "src/assets/museum/walls/with_artworks/three/2.jpg",
+    "src/assets/museum/walls/with_artworks/three/4.jpg",
+    "src/assets/museum/walls/with_artworks/three/7.jpg",
+    "src/assets/museum/walls/with_artworks/three/10.jpg",
+    "src/assets/museum/walls/with_artworks/three/13.jpg",
 ];
 
 pub fn decorative_path_for_tile(row: usize, column: usize) -> &'static str {
-    let index = (row * 7 + column * 13) % DECORATIVE_ARTWORK_PATHS.len();
-    DECORATIVE_ARTWORK_PATHS[index]
+    let index = (row * 13 + column * 7 + (row ^ column)) % ALL_MUSEUM_ARTWORKS.len();
+    ALL_MUSEUM_ARTWORKS[index]
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,7 +128,7 @@ impl AssetManager {
             self.load_texture(path);
         }
 
-        for path in DECORATIVE_ARTWORK_PATHS {
+        for path in ALL_MUSEUM_ARTWORKS {
             self.load_texture(path);
         }
 
