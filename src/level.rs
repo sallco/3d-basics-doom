@@ -81,6 +81,15 @@ pub fn parse_map(contents: &str) -> Result<ParsedMap, InvalidMapSymbol> {
 pub enum LevelError {
     Io(std::io::Error),
     InvalidSymbol(InvalidMapSymbol),
+    EmptyMap,
+    EmptyRow {
+        row: usize,
+    },
+    NonRectangular {
+        row: usize,
+        expected: usize,
+        actual: usize,
+    },
 }
 
 impl Display for LevelError {
@@ -88,6 +97,17 @@ impl Display for LevelError {
         match self {
             Self::Io(error) => write!(formatter, "no se pudo leer el mapa: {error}"),
             Self::InvalidSymbol(error) => Display::fmt(error, formatter),
+            Self::EmptyMap => write!(formatter, "el mapa está vacío"),
+            Self::EmptyRow { row } => write!(formatter, "la fila {} está vacía", row + 1),
+            Self::NonRectangular {
+                row,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "la fila {} tiene {actual} celdas; se esperaban {expected}",
+                row + 1
+            ),
         }
     }
 }
@@ -97,14 +117,40 @@ impl Error for LevelError {
         match self {
             Self::Io(error) => Some(error),
             Self::InvalidSymbol(error) => Some(error),
+            Self::EmptyMap | Self::EmptyRow { .. } | Self::NonRectangular { .. } => None,
         }
     }
+}
+
+pub fn validate_map_shape(map: &ParsedMap) -> Result<(), LevelError> {
+    let Some(first_row) = map.first() else {
+        return Err(LevelError::EmptyMap);
+    };
+    let expected_width = first_row.len();
+
+    for (row_index, row) in map.iter().enumerate() {
+        if row.is_empty() {
+            return Err(LevelError::EmptyRow { row: row_index });
+        }
+
+        if row.len() != expected_width {
+            return Err(LevelError::NonRectangular {
+                row: row_index,
+                expected: expected_width,
+                actual: row.len(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 #[allow(dead_code)] // Reemplazará al cargador heredado después de incorporar validaciones.
 pub fn load_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
     let contents = fs::read_to_string(path).map_err(LevelError::Io)?;
-    parse_map(&contents).map_err(LevelError::InvalidSymbol)
+    let map = parse_map(&contents).map_err(LevelError::InvalidSymbol)?;
+    validate_map_shape(&map)?;
+    Ok(map)
 }
 
 #[allow(dead_code)] // Se integrará con el selector y el cargador en pasos posteriores.
@@ -142,6 +188,20 @@ pub struct PaintingTarget {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temporary_map_path(label: &str) -> PathBuf {
+        let unique_suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+
+        std::env::temp_dir().join(format!(
+            "doom-rust-{label}-{}-{unique_suffix}.txt",
+            std::process::id()
+        ))
+    }
 
     #[test]
     fn converts_every_supported_map_symbol() {
@@ -192,5 +252,65 @@ mod tests {
     #[test]
     fn parser_propagates_unknown_symbols() {
         assert_eq!(parse_map("111\n1?1"), Err(InvalidMapSymbol('?')));
+    }
+
+    #[test]
+    fn loads_and_parses_map_file() {
+        let path = temporary_map_path("valid-map");
+        let contents = "1pT\n2eg\n";
+        std::fs::write(&path, contents).unwrap();
+
+        let loaded = load_map(&path);
+        std::fs::remove_file(path).unwrap();
+
+        assert_eq!(loaded.unwrap(), parse_map(contents).unwrap());
+    }
+
+    #[test]
+    fn reports_io_error_for_missing_map_file() {
+        let path = temporary_map_path("missing-map");
+
+        assert!(matches!(load_map(path), Err(LevelError::Io(_))));
+    }
+
+    #[test]
+    fn accepts_rectangular_map_shape() {
+        let map = parse_map("1111\n1pT1\n1g11").unwrap();
+
+        assert!(validate_map_shape(&map).is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_map() {
+        let map = parse_map("").unwrap();
+
+        assert!(matches!(
+            validate_map_shape(&map),
+            Err(LevelError::EmptyMap)
+        ));
+    }
+
+    #[test]
+    fn rejects_map_with_empty_row() {
+        let map = parse_map("111\n\n111").unwrap();
+
+        assert!(matches!(
+            validate_map_shape(&map),
+            Err(LevelError::EmptyRow { row: 1 })
+        ));
+    }
+
+    #[test]
+    fn rejects_non_rectangular_map() {
+        let map = parse_map("1111\n1p1\n1111").unwrap();
+
+        assert!(matches!(
+            validate_map_shape(&map),
+            Err(LevelError::NonRectangular {
+                row: 1,
+                expected: 4,
+                actual: 3,
+            })
+        ));
     }
 }
