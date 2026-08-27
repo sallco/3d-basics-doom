@@ -10,6 +10,34 @@ Te has infiltrado como artista callejero en las galerías de un prestigioso muse
 
 ---
 
+## Demostración en Video
+
+[![Demostración del Juego en YouTube](https://img.youtube.com/vi/I5DnGbRIplg/maxresdefault.jpg)](https://youtu.be/I5DnGbRIplg)
+
+> 📹 **Video completo de gameplay y demostración:** [https://youtu.be/I5DnGbRIplg](https://youtu.be/I5DnGbRIplg)
+
+---
+
+## Galería de Assets
+
+### Guardias de Seguridad (Sprites Billboard)
+
+| Alerta (`guard_idle.png`) | Patrulla (`guard_patrol.png`) | Persecución (`guard_chase.png`) | Ralentizado (`guard_angry.png`) |
+| :---: | :---: | :---: | :---: |
+| <img src="src/assets/museum/guards/states/guard_idle.png" width="130"/> | <img src="src/assets/museum/guards/states/guard_patrol.png" width="130"/> | <img src="src/assets/museum/guards/states/guard_chase.png" width="130"/> | <img src="src/assets/museum/guards/states/guard_angry.png" width="130"/> |
+
+### Muros y Obras de Arte del Museo
+
+| Cuadro Individual (`one/1.jpg`) | Doble Cuadro (`two/3.jpg`) | Tríptico (`three/4.jpg`) |
+| :---: | :---: | :---: |
+| <img src="src/assets/museum/walls/with_artworks/one/1.jpg" width="220"/> | <img src="src/assets/museum/walls/with_artworks/two/3.jpg" width="220"/> | <img src="src/assets/museum/walls/with_artworks/three/4.jpg" width="220"/> |
+
+| Reflector Individual (`single_spotlight.jpg`) | Reflector Triple (`triple_spotlight.jpg`) |
+| :---: | :---: |
+| <img src="src/assets/museum/walls/empty/single_spotlight.jpg" width="220"/> | <img src="src/assets/museum/walls/empty/triple_spotlight.jpg" width="220"/> |
+
+---
+
 ## Características Principales
 
 - **Renderizado Raycasting 3D con DDA**: Algoritmo Digital Differential Analysis sin artefactos de ojo de pez y con muestreo sub-pixel de texturas.
