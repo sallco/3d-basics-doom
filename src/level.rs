@@ -67,6 +67,17 @@ impl TryFrom<char> for MapSymbol {
     }
 }
 
+impl MapSymbol {
+    fn closes_boundary(self) -> bool {
+        matches!(
+            self,
+            Self::Tile(
+                Tile::Exit | Tile::Wall(_) | Tile::TargetPainting | Tile::DecorativePainting
+            )
+        )
+    }
+}
+
 pub type ParsedMap = Vec<Vec<MapSymbol>>;
 
 pub fn parse_map(contents: &str) -> Result<ParsedMap, InvalidMapSymbol> {
@@ -90,6 +101,10 @@ pub enum LevelError {
         expected: usize,
         actual: usize,
     },
+    OpenBoundary {
+        row: usize,
+        column: usize,
+    },
 }
 
 impl Display for LevelError {
@@ -108,6 +123,12 @@ impl Display for LevelError {
                 "la fila {} tiene {actual} celdas; se esperaban {expected}",
                 row + 1
             ),
+            Self::OpenBoundary { row, column } => write!(
+                formatter,
+                "el mapa está abierto en la fila {}, columna {}",
+                row + 1,
+                column + 1
+            ),
         }
     }
 }
@@ -117,7 +138,10 @@ impl Error for LevelError {
         match self {
             Self::Io(error) => Some(error),
             Self::InvalidSymbol(error) => Some(error),
-            Self::EmptyMap | Self::EmptyRow { .. } | Self::NonRectangular { .. } => None,
+            Self::EmptyMap
+            | Self::EmptyRow { .. }
+            | Self::NonRectangular { .. }
+            | Self::OpenBoundary { .. } => None,
         }
     }
 }
@@ -145,11 +169,36 @@ pub fn validate_map_shape(map: &ParsedMap) -> Result<(), LevelError> {
     Ok(())
 }
 
+pub fn validate_closed_boundaries(map: &ParsedMap) -> Result<(), LevelError> {
+    validate_map_shape(map)?;
+
+    let last_row = map.len() - 1;
+    let last_column = map[0].len() - 1;
+
+    for (row_index, row) in map.iter().enumerate() {
+        for (column_index, symbol) in row.iter().enumerate() {
+            let is_boundary = row_index == 0
+                || row_index == last_row
+                || column_index == 0
+                || column_index == last_column;
+
+            if is_boundary && !symbol.closes_boundary() {
+                return Err(LevelError::OpenBoundary {
+                    row: row_index,
+                    column: column_index,
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[allow(dead_code)] // Reemplazará al cargador heredado después de incorporar validaciones.
 pub fn load_map(path: impl AsRef<Path>) -> Result<ParsedMap, LevelError> {
     let contents = fs::read_to_string(path).map_err(LevelError::Io)?;
     let map = parse_map(&contents).map_err(LevelError::InvalidSymbol)?;
-    validate_map_shape(&map)?;
+    validate_closed_boundaries(&map)?;
     Ok(map)
 }
 
@@ -257,7 +306,7 @@ mod tests {
     #[test]
     fn loads_and_parses_map_file() {
         let path = temporary_map_path("valid-map");
-        let contents = "1pT\n2eg\n";
+        let contents = "1111\n1pT1\n1 e1\n11g1\n";
         std::fs::write(&path, contents).unwrap();
 
         let loaded = load_map(&path);
@@ -311,6 +360,23 @@ mod tests {
                 expected: 4,
                 actual: 3,
             })
+        ));
+    }
+
+    #[test]
+    fn accepts_closed_map_with_exit_on_boundary() {
+        let map = parse_map("11111\n1p T1\n1 e 1\n11g11").unwrap();
+
+        assert!(validate_closed_boundaries(&map).is_ok());
+    }
+
+    #[test]
+    fn rejects_walkable_cell_on_boundary() {
+        let map = parse_map("11 11\n1p T1\n1 e 1\n11g11").unwrap();
+
+        assert!(matches!(
+            validate_closed_boundaries(&map),
+            Err(LevelError::OpenBoundary { row: 0, column: 2 })
         ));
     }
 }
